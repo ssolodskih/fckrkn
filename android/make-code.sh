@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Make a one-line "setup code" to hand to a phone user, so they never edit a
-# config file. They run:  bash setup.sh <CODE>
+# Make the one-liner to hand a phone user, so they never type a URL, token, or
+# edit a config file. Prints ready-to-send install commands.
 #
 # Values come from the environment or repo-root secrets.local.env:
 #   ./make-code.sh
 #   FUNCTION_URL=... TOKEN=... ./make-code.sh
+#
+# Override the storage bucket used in the primary one-liner with BUCKET=...
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
+BUCKET="${BUCKET:-yacfsocks-dist}"
 
 if { [ -z "${FUNCTION_URL:-}" ] || [ -z "${TOKEN:-}" ]; } && [ -f "$REPO/secrets.local.env" ]; then
   # shellcheck disable=SC1090
@@ -20,8 +23,20 @@ fi
 
 CODE="$(printf '%s|%s' "$FUNCTION_URL" "$TOKEN" | base64 | tr -d '\n')"
 
-echo "Send the phone user this one line:"
-echo
-echo "    bash setup.sh $CODE"
-echo
+STORAGE="https://storage.yandexcloud.net/$BUCKET/install.sh"
+GITHUB="https://raw.githubusercontent.com/ssolodskih/fckrkn/master/android/install.sh"
+
+echo "Send the phone user ONE of these lines to paste in Termux."
 echo "(It carries FUNCTION_URL + TOKEN — treat it like the token itself.)"
+echo
+echo "Works on the locked-down network (Yandex, whitelisted):"
+echo
+echo "    pkg install -y curl && curl -fsSL \"$STORAGE\" | bash -s -- $CODE"
+echo
+echo "Fallback, only on an open network (GitHub):"
+echo
+echo "    pkg install -y curl && curl -fsSL \"$GITHUB\" | bash -s -- $CODE"
+echo
+echo "Just the setup code (for the git-clone method: bash setup.sh <CODE>):"
+echo
+echo "    $CODE"

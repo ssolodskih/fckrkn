@@ -73,8 +73,9 @@ Settings → Data and Storage → Proxy → Add proxy → **SOCKS5**
 and point Telegram at that `LAN-IP:1080`.
 
 **Run it on an Android phone (one-tap homescreen widget):** see [`android/README.md`](android/README.md).
-`bash android/setup.sh` in Termux installs Python, copies the client, and creates a Termux:Widget launcher;
-Telegram on the same phone then uses `SOCKS5 127.0.0.1:1080`.
+Install is a single line pasted into Termux — a ~6 MB Go binary (no Python), downloaded from a whitelisted
+Yandex storage bucket (works on the locked-down network) with a GitHub fallback. Telegram on the same phone
+then uses `SOCKS5 127.0.0.1:1080`.
 
 ## Test locally (no deploy)
 
