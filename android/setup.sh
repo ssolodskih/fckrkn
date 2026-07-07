@@ -82,11 +82,19 @@ cp "$HERE/boot.sh" "$BOOT_DIR/yacfsocks-boot.sh"
 chmod +x "$BOOT_DIR/yacfsocks-boot.sh"
 
 echo
-echo "Done. Next:"
-echo "  1. Edit your config:   nano $CONFIG_DIR/env"
-echo "  2. Install the app 'Termux:Widget' (F-Droid), then add its widget to"
-echo "     your homescreen and pick 'yacfsocks'. Tapping it starts the proxy."
-echo "  3. Telegram -> Settings -> Data and Storage -> Proxy -> Add SOCKS5:"
-echo "     Server 127.0.0.1  Port 1080  (user/pass only if you set them)."
+if grep -q "REPLACE_WITH_" "$CONFIG_DIR/env" 2>/dev/null; then
+  echo "IMPORTANT — do this now:"
+  echo "  Put your FUNCTION_URL and TOKEN into the config file:"
+  echo "      nano $CONFIG_DIR/env"
+  echo "  Replace the two REPLACE_WITH_... placeholders, save (Ctrl-O, Enter, Ctrl-X)."
+else
+  echo "Config already has your FUNCTION_URL + TOKEN ($CONFIG_DIR/env)."
+fi
 echo
-echo "  Test now without the widget:  bash $SHORTCUTS_DIR/yacfsocks.sh"
+echo "Then:"
+echo "  - Test it:            bash $SHORTCUTS_DIR/yacfsocks.sh   (expect: SOCKS5 on 127.0.0.1:1080)"
+echo "  - Add the homescreen widget: Termux:Widget -> yacfsocks (one tap to start)."
+echo "  - Telegram -> Settings -> Data and Storage -> Proxy -> Add SOCKS5:"
+echo "        Server 127.0.0.1   Port 1080"
+echo
+echo "Full guide: yacfsocks/android/README.md"

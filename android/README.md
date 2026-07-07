@@ -1,97 +1,134 @@
-# Run yacfsocks on Android (one-tap homescreen widget)
+# Run yacfsocks on Android — step by step
 
-Android can't run a background TCP listener from a bare homescreen link — there's no app to
-host the server. The minimal-effort real path is **Termux** (a terminal/Linux environment) plus
-its **Termux:Widget** add-on, which puts a one-tap launcher on your homescreen. `client.py` is
-pure stdlib, so it runs on Termux's Python unchanged — no rewrite, no APK to build.
+Goal: your phone runs a small proxy in the background, and Telegram on the **same phone** uses it.
+Follow the steps in order. Each step is copy-paste. Total time ~10 minutes.
 
-The phone runs the SOCKS5 client locally; Telegram on the **same phone** points at `127.0.0.1:1080`.
+## What you need before starting
 
-## 1. Install the apps (from F-Droid, not Play Store)
+**Two values**, from whoever set up the Cloud Function (they come from `deploy.sh`):
 
-The Play Store builds of Termux are outdated and its widget add-on isn't there. Use F-Droid:
+| Value | Looks like |
+|-------|-----------|
+| `FUNCTION_URL` | `https://functions.yandexcloud.net/d4abc123...` |
+| `TOKEN` | a long random string, e.g. `8e93e78c99fc...` |
 
-- **Termux** — the terminal.
-- **Termux:Widget** — the homescreen widget/shortcut. Required for the one-tap launch.
-- **Termux:Boot** — *optional*, auto-starts the proxy when the phone powers on.
+Keep these two handy — you paste them in **Step 4**, and nowhere else.
 
-Install Termux first and open it once before installing the add-ons (they must be signed by the
-same source — all from F-Droid is fine).
+---
 
-## 2. Copy this repo onto the phone and run setup
+## Step 1 — Install the apps (from F-Droid, NOT the Play Store)
 
-In Termux:
+The Play Store version of Termux is broken/outdated. Get F-Droid first (https://f-droid.org), then
+from inside F-Droid install:
+
+1. **Termux** — the terminal. Open it once after installing.
+2. **Termux:Widget** — puts the one-tap button on your homescreen. Required.
+3. **Termux:Boot** — *optional*, auto-starts the proxy after a reboot.
+
+(All three must come from F-Droid so they're signed the same way.)
+
+## Step 2 — Get the code onto the phone
+
+Open **Termux** and paste:
 
 ```bash
 pkg install -y git
-git clone <this-repo-url> yacfsocks     # or copy the folder over however you like
+git clone https://github.com/ssolodskih/fckrkn yacfsocks
+```
+
+## Step 3 — Run the installer
+
+```bash
 cd yacfsocks/android
 bash setup.sh
 ```
 
-`setup.sh` installs Python + certifi, copies `client.py` to `~/.yacfsocks/`, drops the widget
-launcher into `~/.shortcuts/`, and writes a config template to `~/.config/yacfsocks/env`.
+This installs Python, copies the proxy into place, and creates the homescreen launcher. It also
+creates the **one config file** you edit in the next step:
+`~/.config/yacfsocks/env`.
 
-## 3. (Optional) change the function URL / token
+## Step 4 — Paste your two values (THE important step)
 
-The widget ships with the current `FUNCTION_URL` and `TOKEN` baked in — nothing to edit for a
-normal install. You only need this if you **redeploy** (new function id or token) or want SOCKS
-auth:
+Open the config file:
 
 ```bash
 nano ~/.config/yacfsocks/env
 ```
 
-Any `NAME=value` line there overrides the baked-in default. Save and exit.
+You'll see two lines starting with `FUNCTION_URL=` and `TOKEN=`. Replace the placeholder after each
+`=` with your real value, so they look like:
 
-## 4. Add the widget
+```
+FUNCTION_URL=https://functions.yandexcloud.net/d4abc123...
+TOKEN=8e93e78c99fc...
+```
 
-On the homescreen: add a widget → **Termux:Widget** → pick **yacfsocks**. Tapping it opens a
-short Termux session that holds a wake lock and starts the proxy. Leave that session alive (it can
-sit in the background); closing it or swiping Termux away stops the proxy.
+Leave the rest of the file alone. Save and exit: **Ctrl-O**, then **Enter**, then **Ctrl-X**.
 
-Test it first without the widget:
+> This file lives on your phone only. It is the single place secrets go — you never edit anything
+> else.
+
+## Step 5 — Test it
 
 ```bash
 bash ~/.shortcuts/yacfsocks.sh
 ```
 
-You should see `yacfsocks SOCKS5 on 127.0.0.1:1080 ...`.
+You should see:
 
-## 5. Point Telegram at it
+```
+yacfsocks SOCKS5 on 127.0.0.1:1080 ...
+```
+
+If instead it says `Set FUNCTION_URL + TOKEN ...`, go back to Step 4 — a value is still a
+placeholder. Leave this running and do Step 6 (or press **Ctrl-C** to stop; you'll relaunch from the
+widget).
+
+## Step 6 — Point Telegram at it
 
 Telegram → **Settings → Data and Storage → Proxy → Add proxy → SOCKS5**
-- Server `127.0.0.1`, Port `1080`
-- Username/Password only if you set `SOCKS_USER` / `SOCKS_PASS`
 
-Enable the proxy. Chats should load on the whitelisted network.
+- **Server:** `127.0.0.1`
+- **Port:** `1080`
+- Username/Password: leave empty.
 
-## Auto-start on boot (optional)
+Turn the proxy **on**. Your chats should load.
 
-If you installed **Termux:Boot**, `setup.sh` already placed an autostart script in
-`~/.termux/boot/`. Open Termux:Boot once so Android grants it launch permission. After a reboot the
-proxy starts on its own — no tap needed.
+## Step 7 — The one-tap button
 
-## Keeping it alive
+On your homescreen: long-press an empty spot → **Widgets** → **Termux:Widget** → drop it on the
+screen → pick **yacfsocks**.
 
-Android aggressively kills background apps to save battery. To keep the proxy up:
+From now on: **tap that widget to start the proxy.** It opens a small Termux screen and keeps
+running in the background. Telegram works as long as it's running.
 
-- The launcher already calls `termux-wake-lock` (a persistent "acquired wake lock" notification is
-  normal and expected).
-- In Android Settings → Apps → Termux → Battery, set it to **Unrestricted** / disable battery
-  optimization.
-- On some vendors (Xiaomi/MIUI, Huawei, Samsung), also **lock** Termux in the recent-apps switcher
-  so the OS won't swipe-kill it.
+- To stop: open that Termux screen and press **Ctrl-C**, or swipe Termux away.
+- If Telegram stops working, just tap the widget again.
 
-If the connection drops, Telegram reconnects on its own; if the whole process was killed, tap the
-widget again.
+---
 
-## Troubleshooting
+## Optional: start automatically after reboot
 
-- **`CERTIFICATE_VERIFY_FAILED`** — set `INSECURE=1` in `~/.config/yacfsocks/env`. Safe here: the
-  tunneled bytes are inside Telegram's own MTProto crypto.
-- **Telegram stuck on "connecting"** — set `DEBUG=1` in the config, run
-  `bash ~/.shortcuts/yacfsocks.sh` in Termux, and watch the `ex <sid> up=.. down=..` lines to see
-  where bytes stop.
-- **`command not found: termux-wake-lock`** — `pkg install termux-api` (harmless if missing; the
-  launcher ignores the error).
+If you installed **Termux:Boot**: open it once (so Android allows it to run), and you're done —
+`setup.sh` already installed the autostart script. After every reboot the proxy starts on its own.
+
+## Keep Android from killing it
+
+Android kills background apps to save battery. To keep the proxy alive:
+
+- Settings → **Apps → Termux → Battery** → set to **Unrestricted** (disable battery optimization).
+- On Xiaomi/MIUI, Huawei, Samsung: also open the recent-apps switcher and **lock** Termux so it
+  isn't swiped away automatically.
+- The "wake lock acquired" notification from Termux is normal — leave it.
+
+## If something goes wrong
+
+- **Telegram won't connect / stuck on "connecting":** re-check Step 4 (a wrong URL or token), then
+  tap the widget again. Still stuck? In `~/.config/yacfsocks/env` set `DEBUG=1`, run
+  `bash ~/.shortcuts/yacfsocks.sh`, and read the `ex ... up=.. down=..` lines.
+- **`CERTIFICATE_VERIFY_FAILED`:** in `~/.config/yacfsocks/env` add a line `INSECURE=1`. Safe here —
+  Telegram encrypts its own traffic inside the tunnel.
+- **`command not found: termux-wake-lock`:** run `pkg install termux-api` (optional; the proxy still
+  works without it).
+- **Need a username/password on the proxy:** in `~/.config/yacfsocks/env` uncomment `SOCKS_USER` and
+  `SOCKS_PASS`, then enter the same values in Telegram's proxy screen.
