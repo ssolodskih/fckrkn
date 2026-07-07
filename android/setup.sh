@@ -27,27 +27,56 @@ echo "==> Copying client to $APP_DIR"
 mkdir -p "$APP_DIR"
 cp "$REPO/client/client.py" "$APP_DIR/client.py"
 
-echo "==> Writing config to $CONFIG_DIR/env"
+echo "==> Configuring FUNCTION_URL + TOKEN"
 mkdir -p "$CONFIG_DIR"
-# If you keep real values in repo-root secrets.local.env (gitignored), use them;
-# otherwise write placeholders you fill in by hand.
-SECRETS="$REPO/secrets.local.env"
-FUNC_URL_VAL="https://functions.yandexcloud.net/REPLACE_WITH_FUNCTION_ID"
-TOKEN_VAL="REPLACE_WITH_TOKEN"
-if [ -f "$SECRETS" ]; then
-  # shellcheck disable=SC1090
-  . "$SECRETS"
-  FUNC_URL_VAL="${FUNCTION_URL:-$FUNC_URL_VAL}"
-  TOKEN_VAL="${TOKEN:-$TOKEN_VAL}"
-  echo "    using values from $SECRETS"
+
+# Resolve the two secrets with the least friction, in priority order:
+#   1. environment:   FUNCTION_URL=... TOKEN=... bash setup.sh
+#   2. setup code:     bash setup.sh <CODE>     (one string, base64 of "URL|TOKEN")
+#   3. repo-root secrets.local.env (gitignored, for the person who deployed)
+#   4. interactive paste prompt (no editor needed)
+FUNC_URL_VAL="${FUNCTION_URL:-}"
+TOKEN_VAL="${TOKEN:-}"
+
+if { [ -z "$FUNC_URL_VAL" ] || [ -z "$TOKEN_VAL" ]; } && [ -n "${1:-}" ]; then
+  decoded="$(printf '%s' "$1" | base64 -d 2>/dev/null || true)"
+  if [ -n "$decoded" ] && [ "$decoded" != "${decoded#*|}" ]; then
+    FUNC_URL_VAL="${decoded%%|*}"
+    TOKEN_VAL="${decoded#*|}"
+    echo "    using the setup code you passed"
+  else
+    echo "    (ignoring unreadable setup code)"
+  fi
 fi
-if [ ! -f "$CONFIG_DIR/env" ]; then
-  cat > "$CONFIG_DIR/env" <<EOF
-# yacfsocks client config. Set FUNCTION_URL + TOKEN (from deploy.sh output).
+
+if { [ -z "$FUNC_URL_VAL" ] || [ -z "$TOKEN_VAL" ]; } && [ -f "$REPO/secrets.local.env" ]; then
+  # shellcheck disable=SC1090
+  . "$REPO/secrets.local.env"
+  FUNC_URL_VAL="${FUNC_URL_VAL:-${FUNCTION_URL:-}}"
+  TOKEN_VAL="${TOKEN_VAL:-${TOKEN:-}}"
+  echo "    using values from secrets.local.env"
+fi
+
+# Interactive paste — only if still missing and we have a terminal.
+if [ -z "$FUNC_URL_VAL" ] && [ -t 0 ]; then
+  printf '    Paste FUNCTION_URL and press Enter:\n    > '; read -r FUNC_URL_VAL
+fi
+if [ -z "$TOKEN_VAL" ] && [ -t 0 ]; then
+  printf '    Paste TOKEN and press Enter:\n    > '; read -r TOKEN_VAL
+fi
+
+# Last resort (non-interactive, nothing supplied): placeholders.
+FUNC_URL_VAL="${FUNC_URL_VAL:-https://functions.yandexcloud.net/REPLACE_WITH_FUNCTION_ID}"
+TOKEN_VAL="${TOKEN_VAL:-REPLACE_WITH_TOKEN}"
+
+echo "==> Writing config to $CONFIG_DIR/env"
+{
+  cat <<EOF
+# yacfsocks client config. Written by setup.sh.
 FUNCTION_URL=$FUNC_URL_VAL
 TOKEN=$TOKEN_VAL
 EOF
-  cat >> "$CONFIG_DIR/env" <<'EOF'
+  cat <<'EOF'
 
 # Optional. Uncomment to require SOCKS auth from Telegram.
 #SOCKS_USER=me
@@ -66,10 +95,7 @@ MAX_INFLIGHT=9
 # Set to 1 for verbose per-exchange logging.
 #DEBUG=1
 EOF
-  echo "    created (edit FUNCTION_URL + TOKEN)"
-else
-  echo "    already exists, kept"
-fi
+} > "$CONFIG_DIR/env"
 
 echo "==> Installing widget launcher to $SHORTCUTS_DIR"
 mkdir -p "$SHORTCUTS_DIR"

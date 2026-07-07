@@ -12,7 +12,8 @@ Follow the steps in order. Each step is copy-paste. Total time ~10 minutes.
 | `FUNCTION_URL` | `https://functions.yandexcloud.net/d4abc123...` |
 | `TOKEN` | a long random string, e.g. `8e93e78c99fc...` |
 
-Keep these two handy — you paste them in **Step 4**, and nowhere else.
+Keep these two handy — you enter them in **Step 3**, and nowhere else. (Or, even easier, ask them for
+a ready-made **setup code** — see Step 3.)
 
 ---
 
@@ -36,39 +37,40 @@ pkg install -y git
 git clone https://github.com/ssolodskih/fckrkn yacfsocks
 ```
 
-## Step 3 — Run the installer
+## Step 3 — Run the installer (this is also where the two values go)
+
+You have two ways. **No text editor either way.**
+
+**Easiest — a setup code.** If the person who set up the function gave you a single line like
+`bash setup.sh eHR0cHM6...`, just paste and run that:
+
+```bash
+cd yacfsocks/android
+bash setup.sh <THE-LONG-CODE-THEY-GAVE-YOU>
+```
+
+That one code already contains both `FUNCTION_URL` and `TOKEN`. Done — skip to Step 4.
+
+**Or — paste at the prompt.** If you only have the two values, run:
 
 ```bash
 cd yacfsocks/android
 bash setup.sh
 ```
 
-This installs Python, copies the proxy into place, and creates the homescreen launcher. It also
-creates the **one config file** you edit in the next step:
-`~/.config/yacfsocks/env`.
-
-## Step 4 — Paste your two values (THE important step)
-
-Open the config file:
-
-```bash
-nano ~/.config/yacfsocks/env
-```
-
-You'll see two lines starting with `FUNCTION_URL=` and `TOKEN=`. Replace the placeholder after each
-`=` with your real value, so they look like:
+It installs everything, then **asks you to paste** each value:
 
 ```
-FUNCTION_URL=https://functions.yandexcloud.net/d4abc123...
-TOKEN=8e93e78c99fc...
+Paste FUNCTION_URL and press Enter:
+> https://functions.yandexcloud.net/d4abc123...
+Paste TOKEN and press Enter:
+> 8e93e78c99fc...
 ```
 
-Leave the rest of the file alone. Save and exit: **Ctrl-O**, then **Enter**, then **Ctrl-X**.
+(In Termux, paste = long-press the screen → Paste.) That's it — the values are saved to
+`~/.config/yacfsocks/env` for you. You never open an editor.
 
-> This file lives on your phone only. It is the single place secrets go — you never edit anything
-> else.
-
-## Step 5 — Test it
+## Step 4 — Test it
 
 ```bash
 bash ~/.shortcuts/yacfsocks.sh
@@ -80,11 +82,10 @@ You should see:
 yacfsocks SOCKS5 on 127.0.0.1:1080 ...
 ```
 
-If instead it says `Set FUNCTION_URL + TOKEN ...`, go back to Step 4 — a value is still a
-placeholder. Leave this running and do Step 6 (or press **Ctrl-C** to stop; you'll relaunch from the
-widget).
+If instead it says `Set FUNCTION_URL + TOKEN ...`, re-run Step 3 — a value didn't get saved. Leave
+this running and do Step 5 (or press **Ctrl-C** to stop; you'll relaunch from the widget).
 
-## Step 6 — Point Telegram at it
+## Step 5 — Point Telegram at it
 
 Telegram → **Settings → Data and Storage → Proxy → Add proxy → SOCKS5**
 
@@ -94,7 +95,7 @@ Telegram → **Settings → Data and Storage → Proxy → Add proxy → SOCKS5*
 
 Turn the proxy **on**. Your chats should load.
 
-## Step 7 — The one-tap button
+## Step 6 — The one-tap button
 
 On your homescreen: long-press an empty spot → **Widgets** → **Termux:Widget** → drop it on the
 screen → pick **yacfsocks**.
@@ -123,7 +124,8 @@ Android kills background apps to save battery. To keep the proxy alive:
 
 ## If something goes wrong
 
-- **Telegram won't connect / stuck on "connecting":** re-check Step 4 (a wrong URL or token), then
+- **Telegram won't connect / stuck on "connecting":** re-check Step 3 (a wrong URL or token) by
+  re-running it, then
   tap the widget again. Still stuck? In `~/.config/yacfsocks/env` set `DEBUG=1`, run
   `bash ~/.shortcuts/yacfsocks.sh`, and read the `ex ... up=.. down=..` lines.
 - **`CERTIFICATE_VERIFY_FAILED`:** in `~/.config/yacfsocks/env` add a line `INSECURE=1`. Safe here —
@@ -132,3 +134,20 @@ Android kills background apps to save battery. To keep the proxy alive:
   works without it).
 - **Need a username/password on the proxy:** in `~/.config/yacfsocks/env` uncomment `SOCKS_USER` and
   `SOCKS_PASS`, then enter the same values in Telegram's proxy screen.
+
+---
+
+## For whoever deployed the function: hand out a one-line setup code
+
+So the phone user never types a URL or token, generate a setup code on the machine that has the
+secrets (reads `secrets.local.env`, or pass them inline):
+
+```bash
+cd android
+./make-code.sh
+# or: FUNCTION_URL=... TOKEN=... ./make-code.sh
+```
+
+It prints a single line — `bash setup.sh <CODE>` — to send them. That code carries both values, so
+treat it as secret (same sensitivity as the token). The user pastes it in Step 3 and is done.
+
