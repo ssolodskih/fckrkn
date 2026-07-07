@@ -9,5 +9,13 @@ __pycache__/
 .venv/
 venv/
 
+# IDE
+.idea/
+
 # macOS
 .DS_Store
+
+# Go build artifacts — ship only the arm64 phone binary
+android/bin/yacfsocks-linux-amd64
+client-go/yacfsocks
+/tmp/yacfsocks-local

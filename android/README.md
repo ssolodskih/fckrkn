@@ -1,7 +1,9 @@
 # Run yacfsocks on Android — step by step
 
-Goal: your phone runs a small proxy in the background, and Telegram on the **same phone** uses it.
-Follow the steps in order. Each step is copy-paste. Total time ~10 minutes.
+Your phone runs a small proxy in the background, and Telegram on the **same phone** uses it.
+The proxy is a single ~6 MB Go binary — **no Python, no pip, no package hell** (the old Python
+path pulled in ~1 GB). You still need Termux as a place to launch it from, plus one tiny helper
+package (a few hundred KB). Follow the steps in order; each is copy-paste. ~10 minutes.
 
 ## What you need before starting
 
@@ -12,8 +14,7 @@ Follow the steps in order. Each step is copy-paste. Total time ~10 minutes.
 | `FUNCTION_URL` | `https://functions.yandexcloud.net/d4abc123...` |
 | `TOKEN` | a long random string, e.g. `8e93e78c99fc...` |
 
-Keep these two handy — you enter them in **Step 3**, and nowhere else. (Or, even easier, ask them for
-a ready-made **setup code** — see Step 3.)
+Even easier: ask them for a ready-made **setup code** (see Step 3) — one line that carries both.
 
 ---
 
@@ -37,28 +38,29 @@ pkg install -y git
 git clone https://github.com/ssolodskih/fckrkn yacfsocks
 ```
 
+This includes the prebuilt `arm64` proxy binary — nothing to compile on the phone.
+
 ## Step 3 — Run the installer (this is also where the two values go)
 
-You have two ways. **No text editor either way.**
+Two ways, **no text editor either way.**
 
-**Easiest — a setup code.** If the person who set up the function gave you a single line like
-`bash setup.sh eHR0cHM6...`, just paste and run that:
+**Easiest — a setup code.** If the deployer gave you a line like `bash setup.sh eHR0cHM6...`, run it:
 
 ```bash
 cd yacfsocks/android
 bash setup.sh <THE-LONG-CODE-THEY-GAVE-YOU>
 ```
 
-That one code already contains both `FUNCTION_URL` and `TOKEN`. Done — skip to Step 4.
+That code carries both `FUNCTION_URL` and `TOKEN`. Done — skip to Step 4.
 
-**Or — paste at the prompt.** If you only have the two values, run:
+**Or — paste at the prompt.** If you only have the two values:
 
 ```bash
 cd yacfsocks/android
 bash setup.sh
 ```
 
-It installs everything, then **asks you to paste** each value:
+It installs a tiny ELF helper, puts the binary in place, then **asks you to paste** each value:
 
 ```
 Paste FUNCTION_URL and press Enter:
@@ -67,8 +69,8 @@ Paste TOKEN and press Enter:
 > 8e93e78c99fc...
 ```
 
-(In Termux, paste = long-press the screen → Paste.) That's it — the values are saved to
-`~/.config/yacfsocks/env` for you. You never open an editor.
+(In Termux, paste = long-press the screen → Paste.) Values are saved to `~/.config/yacfsocks/env`.
+You never open an editor.
 
 ## Step 4 — Test it
 
@@ -76,14 +78,14 @@ Paste TOKEN and press Enter:
 bash ~/.shortcuts/yacfsocks.sh
 ```
 
-You should see:
+Expect:
 
 ```
 yacfsocks SOCKS5 on 127.0.0.1:1080 ...
 ```
 
-If instead it says `Set FUNCTION_URL + TOKEN ...`, re-run Step 3 — a value didn't get saved. Leave
-this running and do Step 5 (or press **Ctrl-C** to stop; you'll relaunch from the widget).
+If it says `Set FUNCTION_URL + TOKEN ...`, re-run Step 3. Leave this running and do Step 5 (or
+**Ctrl-C** to stop; you'll relaunch from the widget).
 
 ## Step 5 — Point Telegram at it
 
@@ -104,50 +106,57 @@ From now on: **tap that widget to start the proxy.** It opens a small Termux scr
 running in the background. Telegram works as long as it's running.
 
 - To stop: open that Termux screen and press **Ctrl-C**, or swipe Termux away.
-- If Telegram stops working, just tap the widget again.
+- If Telegram stops working, tap the widget again.
 
 ---
 
 ## Optional: start automatically after reboot
 
-If you installed **Termux:Boot**: open it once (so Android allows it to run), and you're done —
-`setup.sh` already installed the autostart script. After every reboot the proxy starts on its own.
+If you installed **Termux:Boot**: open it once (so Android allows it to run) — `setup.sh` already
+placed the autostart script. After every reboot the proxy starts on its own.
 
 ## Keep Android from killing it
 
 Android kills background apps to save battery. To keep the proxy alive:
 
-- Settings → **Apps → Termux → Battery** → set to **Unrestricted** (disable battery optimization).
-- On Xiaomi/MIUI, Huawei, Samsung: also open the recent-apps switcher and **lock** Termux so it
-  isn't swiped away automatically.
-- The "wake lock acquired" notification from Termux is normal — leave it.
+- Settings → **Apps → Termux → Battery** → **Unrestricted** (disable battery optimization).
+- On Xiaomi/MIUI, Huawei, Samsung: open the recent-apps switcher and **lock** Termux so it isn't
+  swiped away.
+- The "wake lock acquired" notification is normal — leave it.
 
 ## If something goes wrong
 
-- **Telegram won't connect / stuck on "connecting":** re-check Step 3 (a wrong URL or token) by
-  re-running it, then
-  tap the widget again. Still stuck? In `~/.config/yacfsocks/env` set `DEBUG=1`, run
-  `bash ~/.shortcuts/yacfsocks.sh`, and read the `ex ... up=.. down=..` lines.
-- **`CERTIFICATE_VERIFY_FAILED`:** in `~/.config/yacfsocks/env` add a line `INSECURE=1`. Safe here —
-  Telegram encrypts its own traffic inside the tunnel.
-- **`command not found: termux-wake-lock`:** run `pkg install termux-api` (optional; the proxy still
-  works without it).
-- **Need a username/password on the proxy:** in `~/.config/yacfsocks/env` uncomment `SOCKS_USER` and
-  `SOCKS_PASS`, then enter the same values in Telegram's proxy screen.
+- **Telegram won't connect / stuck on "connecting":** re-check Step 3 (wrong URL or token) by
+  re-running it, then tap the widget again. Still stuck? add `DEBUG=1` to
+  `~/.config/yacfsocks/env`, run `bash ~/.shortcuts/yacfsocks.sh`, and read the
+  `ex ... up=.. down=..` lines.
+- **`certificate signed by unknown authority` / TLS errors:** add `INSECURE=1` to
+  `~/.config/yacfsocks/env`. Safe here — Telegram encrypts its own traffic inside the tunnel.
+- **`no such file or directory` when the binary runs, or a linker error:** your Android is unusual.
+  The launcher already starts the binary via `/system/bin/linker64`; if that fails, tell the
+  maintainer your `uname -m` and Android version.
+- **Need a username/password on the proxy:** uncomment `SOCKS_USER` / `SOCKS_PASS` in
+  `~/.config/yacfsocks/env`, and enter the same values in Telegram's proxy screen.
 
 ---
 
-## For whoever deployed the function: hand out a one-line setup code
+## For whoever deployed the function
 
-So the phone user never types a URL or token, generate a setup code on the machine that has the
-secrets (reads `secrets.local.env`, or pass them inline):
+**Generate a one-line setup code** (so the phone user types nothing) on a machine with the secrets:
 
 ```bash
 cd android
-./make-code.sh
-# or: FUNCTION_URL=... TOKEN=... ./make-code.sh
+./make-code.sh          # or: FUNCTION_URL=... TOKEN=... ./make-code.sh
 ```
 
-It prints a single line — `bash setup.sh <CODE>` — to send them. That code carries both values, so
-treat it as secret (same sensitivity as the token). The user pastes it in Step 3 and is done.
+It prints `bash setup.sh <CODE>` to send them. That code carries both values — treat it as secret.
 
+**Rebuild the binary** (only when the client changes) on any computer with Go:
+
+```bash
+cd client-go && ./build.sh      # writes android/bin/yacfsocks-linux-arm64
+```
+
+No Android NDK needed: it's a pure-Go, CGO-free static PIE. `termux-elf-cleaner` (run by
+`setup.sh` on the phone) plus launching through `/system/bin/linker64` makes it run under Android's
+linker.

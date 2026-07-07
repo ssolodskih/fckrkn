@@ -1,12 +1,12 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# yacfsocks — one-time Android/Termux setup.
+# yacfsocks — one-time Android/Termux setup (Go binary, no Python).
 #
 # Run this ONCE inside Termux:
-#   bash setup.sh
+#   bash setup.sh                 # then paste FUNCTION_URL + TOKEN when asked
+#   bash setup.sh <SETUP-CODE>    # one-liner from make-code.sh (carries both)
 #
-# It installs Python, copies the client, and creates a homescreen-widget
-# launcher so you can start the proxy with a single tap. After it finishes,
-# edit ~/.config/yacfsocks/env with your FUNCTION_URL and TOKEN.
+# It installs a tiny ELF fixer, drops the prebuilt proxy binary into place, and
+# creates a homescreen-widget launcher so you can start the proxy with one tap.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -16,25 +16,38 @@ CONFIG_DIR="$HOME/.config/yacfsocks"
 APP_DIR="$HOME/.yacfsocks"
 SHORTCUTS_DIR="$HOME/.shortcuts"
 BOOT_DIR="$HOME/.termux/boot"
+BIN="$APP_DIR/yacfsocks"
 
-echo "==> Installing Python + certifi"
+# --- pick the right prebuilt binary for this CPU -----------------------------
+ARCH="$(uname -m)"
+case "$ARCH" in
+  aarch64|arm64) SRC="$HERE/bin/yacfsocks-linux-arm64" ;;
+  x86_64|amd64)  SRC="$HERE/bin/yacfsocks-linux-amd64" ;;
+  *) echo "Unsupported CPU '$ARCH'. Only arm64/amd64 binaries are shipped."; exit 1 ;;
+esac
+if [ ! -f "$SRC" ]; then
+  echo "Missing binary $SRC — build it first: (on a computer) cd client-go && ./build.sh"
+  exit 1
+fi
+
+# --- install binary ----------------------------------------------------------
+# The binary is a cross-compiled Go PIE with no library deps. Android's linker
+# is stricter than glibc's, so run termux-elf-cleaner over it once; the launcher
+# then starts it through /system/bin/linker64. No Python, no glibc, no pip.
+echo "==> Installing termux-elf-cleaner (tiny, one-time)"
 pkg update -y
-pkg install -y python
-python -m pip install --upgrade pip >/dev/null 2>&1 || true
-python -m pip install certifi >/dev/null 2>&1 || true
+pkg install -y termux-elf-cleaner
 
-echo "==> Copying client to $APP_DIR"
+echo "==> Installing proxy binary to $BIN"
 mkdir -p "$APP_DIR"
-cp "$REPO/client/client.py" "$APP_DIR/client.py"
+cp "$SRC" "$BIN"
+termux-elf-cleaner "$BIN" >/dev/null 2>&1 || true
+chmod +x "$BIN"
 
+# --- resolve FUNCTION_URL + TOKEN with the least friction --------------------
+#   1. environment    2. setup code $1    3. secrets.local.env    4. prompt
 echo "==> Configuring FUNCTION_URL + TOKEN"
 mkdir -p "$CONFIG_DIR"
-
-# Resolve the two secrets with the least friction, in priority order:
-#   1. environment:   FUNCTION_URL=... TOKEN=... bash setup.sh
-#   2. setup code:     bash setup.sh <CODE>     (one string, base64 of "URL|TOKEN")
-#   3. repo-root secrets.local.env (gitignored, for the person who deployed)
-#   4. interactive paste prompt (no editor needed)
 FUNC_URL_VAL="${FUNCTION_URL:-}"
 TOKEN_VAL="${TOKEN:-}"
 
@@ -57,7 +70,6 @@ if { [ -z "$FUNC_URL_VAL" ] || [ -z "$TOKEN_VAL" ]; } && [ -f "$REPO/secrets.loc
   echo "    using values from secrets.local.env"
 fi
 
-# Interactive paste — only if still missing and we have a terminal.
 if [ -z "$FUNC_URL_VAL" ] && [ -t 0 ]; then
   printf '    Paste FUNCTION_URL and press Enter:\n    > '; read -r FUNC_URL_VAL
 fi
@@ -65,7 +77,6 @@ if [ -z "$TOKEN_VAL" ] && [ -t 0 ]; then
   printf '    Paste TOKEN and press Enter:\n    > '; read -r TOKEN_VAL
 fi
 
-# Last resort (non-interactive, nothing supplied): placeholders.
 FUNC_URL_VAL="${FUNC_URL_VAL:-https://functions.yandexcloud.net/REPLACE_WITH_FUNCTION_ID}"
 TOKEN_VAL="${TOKEN_VAL:-REPLACE_WITH_TOKEN}"
 
@@ -97,6 +108,7 @@ MAX_INFLIGHT=9
 EOF
 } > "$CONFIG_DIR/env"
 
+# --- launcher + optional boot autostart --------------------------------------
 echo "==> Installing widget launcher to $SHORTCUTS_DIR"
 mkdir -p "$SHORTCUTS_DIR"
 cp "$HERE/yacfsocks.sh" "$SHORTCUTS_DIR/yacfsocks.sh"
@@ -112,13 +124,13 @@ if grep -q "REPLACE_WITH_" "$CONFIG_DIR/env" 2>/dev/null; then
   echo "IMPORTANT — do this now:"
   echo "  Put your FUNCTION_URL and TOKEN into the config file:"
   echo "      nano $CONFIG_DIR/env"
-  echo "  Replace the two REPLACE_WITH_... placeholders, save (Ctrl-O, Enter, Ctrl-X)."
+  echo "  (or re-run: bash setup.sh <SETUP-CODE>)"
 else
-  echo "Config already has your FUNCTION_URL + TOKEN ($CONFIG_DIR/env)."
+  echo "Config has your FUNCTION_URL + TOKEN ($CONFIG_DIR/env)."
 fi
 echo
 echo "Then:"
-echo "  - Test it:            bash $SHORTCUTS_DIR/yacfsocks.sh   (expect: SOCKS5 on 127.0.0.1:1080)"
+echo "  - Test it:   bash $SHORTCUTS_DIR/yacfsocks.sh   (expect: SOCKS5 on 127.0.0.1:1080)"
 echo "  - Add the homescreen widget: Termux:Widget -> yacfsocks (one tap to start)."
 echo "  - Telegram -> Settings -> Data and Storage -> Proxy -> Add SOCKS5:"
 echo "        Server 127.0.0.1   Port 1080"
