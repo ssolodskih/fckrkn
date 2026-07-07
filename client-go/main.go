@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
@@ -28,6 +29,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -57,9 +59,72 @@ type config struct {
 	listen string
 	user   string
 	pass   string
-	hasCfg bool // SOCKS auth required
-	tlsCfg *tls.Config
-	sem    chan struct{} // caps concurrent function calls (YC zone quota is 10)
+	hasCfg  bool // SOCKS auth required
+	tlsCfg  *tls.Config
+	sem     chan struct{} // caps concurrent function calls (YC zone quota is 10)
+	dialCtx func(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+// dnsServers returns the DNS resolver addresses to use. Android has no
+// /etc/resolv.conf, so Go's resolver falls back to localhost:53 (nothing there)
+// and every lookup fails with "connection refused". Read the real servers from
+// YACF_DNS (set by the launcher) or Android's system properties.
+func dnsServers() []string {
+	if v := os.Getenv("YACF_DNS"); v != "" {
+		return splitClean(v)
+	}
+	var out []string
+	for _, p := range []string{"net.dns1", "net.dns2"} {
+		if ip := getprop(p); ip != "" {
+			out = append(out, ip)
+		}
+	}
+	return out
+}
+
+func splitClean(v string) []string {
+	var out []string
+	for _, p := range strings.Split(v, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func getprop(p string) string {
+	out, err := exec.Command("/system/bin/getprop", p).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// buildResolver returns a resolver that queries the given DNS servers directly,
+// or nil to use Go's default (fine on a normal Linux desktop).
+func buildResolver() *net.Resolver {
+	servers := dnsServers()
+	if len(servers) == 0 {
+		return nil
+	}
+	if debug {
+		log.Printf("dns servers: %v", servers)
+	}
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			var lastErr error
+			for _, s := range servers {
+				c, err := d.DialContext(ctx, "udp", net.JoinHostPort(s, "53"))
+				if err == nil {
+					return c, nil
+				}
+				lastErr = err
+			}
+			return nil, lastErr
+		},
+	}
 }
 
 func newConfig() (*config, error) {
@@ -101,6 +166,9 @@ func newConfig() (*config, error) {
 		tlsCfg: &tls.Config{InsecureSkipVerify: os.Getenv("INSECURE") == "1"},
 		sem:    make(chan struct{}, maxInflight),
 	}
+	// Resolve DNS via the system servers (Android has no resolv.conf).
+	dialer := &net.Dialer{Timeout: 10 * time.Second, Resolver: buildResolver()}
+	cfg.dialCtx = dialer.DialContext
 	return cfg, nil
 }
 
@@ -117,6 +185,7 @@ func (c *config) newSessionClient() *http.Client {
 		TLSClientConfig:     c.tlsCfg,
 		ForceAttemptHTTP2:   false,
 		TLSNextProto:        map[string]func(string, *tls.Conn) http.RoundTripper{}, // disable h2
+		DialContext:         c.dialCtx,
 	}
 	return &http.Client{Transport: tr, Timeout: callTimeout}
 }
