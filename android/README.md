@@ -20,7 +20,7 @@ from inside F-Droid install:
 The person who set up the function gives you a line to paste into Termux. It looks like:
 
 ```bash
-pkg install -y curl && curl -fsSL "https://storage.yandexcloud.net/yacfsocks-dist/install.sh" | bash -s -- <SETUP-CODE>
+pkg install -y wget && wget -qO- "https://storage.yandexcloud.net/yacfsocks-dist/install.sh" | bash -s -- <SETUP-CODE>
 ```
 
 That's the whole install: it downloads the proxy binary + launcher and writes your config (the
@@ -94,6 +94,9 @@ Android kills background apps to save battery. To keep the proxy alive:
   `~/.config/yacfsocks/env`. Safe here — Telegram encrypts its own traffic inside the tunnel.
 - **Download fails:** if you used the GitHub line on the locked-down network, switch to the Yandex
   storage line (or connect to open wifi).
+- **`CANNOT LINK EXECUTABLE "curl" ... SSL_set_quic_tls_transport_params`:** your Termux `curl` is
+  broken by a stale `openssl` (partial upgrade). The one-liner uses `wget` to avoid this; if you still
+  hit it, run `pkg upgrade -y` once, then retry.
 - **`no such file or directory` / linker error when the binary runs:** the launcher starts it via
   `/system/bin/linker64`; if that fails, tell the maintainer your `uname -m` and Android version.
 - **Need a username/password on the proxy:** uncomment `SOCKS_USER` / `SOCKS_PASS` in

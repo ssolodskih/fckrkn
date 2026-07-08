@@ -2,7 +2,7 @@
 # yacfsocks — one-liner Android/Termux installer (no git, no repo clone).
 #
 # Paste in Termux (the deployer gives you the exact line with a setup code):
-#   pkg install -y curl && curl -fsSL "https://storage.yandexcloud.net/yacfsocks-dist/install.sh" | bash -s -- <SETUP-CODE>
+#   pkg install -y wget && wget -qO- "https://storage.yandexcloud.net/yacfsocks-dist/install.sh" | bash -s -- <SETUP-CODE>
 #
 # Downloads the Go proxy binary + launcher, writes your config, and installs a
 # homescreen-widget launcher. No Python, no pip.
@@ -24,11 +24,25 @@ SHORTCUTS_DIR="$HOME/.shortcuts"
 BOOT_DIR="$HOME/.termux/boot"
 BIN="$APP_DIR/yacfsocks"
 
+# dl <url> <outfile> — download with whatever works. Prefer wget: a broken
+# Termux curl (openssl/HTTP-3 symbol mismatch) is common, and wget doesn't pull
+# in the QUIC libs that break. Fall back to curl if wget is absent.
+dl() {
+  local url="$1" out="$2"
+  if command -v wget >/dev/null 2>&1 && wget -q -O "$out" "$url" 2>/dev/null; then
+    return 0
+  fi
+  if command -v curl >/dev/null 2>&1 && curl -fsSL "$url" -o "$out" 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
 # fetch <relpath> <outfile> — try each base until one works.
 fetch() {
   local rel="$1" out="$2" b
   for b in "${BASES[@]}"; do
-    if curl -fsSL "$b/$rel" -o "$out" 2>/dev/null; then
+    if dl "$b/$rel" "$out"; then
       return 0
     fi
   done

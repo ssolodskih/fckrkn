@@ -31,11 +31,11 @@ echo "(It carries FUNCTION_URL + TOKEN — treat it like the token itself.)"
 echo
 echo "Works on the locked-down network (Yandex, whitelisted):"
 echo
-echo "    pkg install -y curl && curl -fsSL \"$STORAGE\" | bash -s -- $CODE"
+echo "    pkg install -y wget && wget -qO- \"$STORAGE\" | bash -s -- $CODE"
 echo
 echo "Fallback, only on an open network (GitHub):"
 echo
-echo "    pkg install -y curl && curl -fsSL \"$GITHUB\" | bash -s -- $CODE"
+echo "    pkg install -y wget && wget -qO- \"$GITHUB\" | bash -s -- $CODE"
 echo
 echo "Just the setup code (for the git-clone method: bash setup.sh <CODE>):"
 echo
