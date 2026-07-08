@@ -29,13 +29,9 @@ if [ "${FUNCTION_URL}" = "https://functions.yandexcloud.net/REPLACE_WITH_FUNCTIO
   exit 1
 fi
 
-# Android has no /etc/resolv.conf, so tell the proxy which DNS servers to use
-# (the binary also reads these itself, but set them here for robustness).
-if [ -z "${YACF_DNS:-}" ] && [ -x /system/bin/getprop ]; then
-  d1="$(/system/bin/getprop net.dns1 2>/dev/null)"
-  d2="$(/system/bin/getprop net.dns2 2>/dev/null)"
-  export YACF_DNS="${d1},${d2}"
-fi
+# DNS: Android has no /etc/resolv.conf; the binary discovers the phone's
+# resolver from system properties (or public fallbacks) on its own. To force a
+# specific resolver, set YACF_DNS=1.1.1.1 in the config file.
 
 # Keep the CPU awake so Android doze doesn't freeze the proxy in the background.
 termux-wake-lock 2>/dev/null || true

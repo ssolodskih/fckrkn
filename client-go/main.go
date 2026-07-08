@@ -65,39 +65,59 @@ type config struct {
 	dialCtx func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
+// Public resolvers used only if the phone's own DNS can't be discovered.
+// (Yandex DNS included — most likely reachable on a Yandex-whitelisted network.)
+var fallbackDNS = []string{"77.88.8.8", "1.1.1.1", "8.8.8.8"}
+
 // dnsServers returns the DNS resolver addresses to use. Android has no
 // /etc/resolv.conf, so Go's resolver falls back to localhost:53 (nothing there)
-// and every lookup fails with "connection refused". Read the real servers from
-// YACF_DNS (set by the launcher) or Android's system properties.
+// and every lookup fails with "connection refused". Discover the real servers
+// from YACF_DNS, then Android's system properties, then public fallbacks.
 func dnsServers() []string {
-	if v := os.Getenv("YACF_DNS"); v != "" {
-		return splitClean(v)
+	if s := splitClean(os.Getenv("YACF_DNS")); len(s) > 0 {
+		return s
 	}
-	var out []string
-	for _, p := range []string{"net.dns1", "net.dns2"} {
-		if ip := getprop(p); ip != "" {
-			out = append(out, ip)
-		}
+	if s := scanGetpropDNS(); len(s) > 0 {
+		return s
 	}
-	return out
+	return fallbackDNS
 }
 
 func splitClean(v string) []string {
 	var out []string
 	for _, p := range strings.Split(v, ",") {
-		if p = strings.TrimSpace(p); p != "" {
+		if p = strings.TrimSpace(p); p != "" && net.ParseIP(p) != nil {
 			out = append(out, p)
 		}
 	}
 	return out
 }
 
-func getprop(p string) string {
-	out, err := exec.Command("/system/bin/getprop", p).Output()
+// scanGetpropDNS parses `getprop` output for every key containing "dns" and
+// collects valid IP values (net.dns1 is gone on Android 8+, but the DHCP lease
+// props like dhcp.wlan0.dns1 usually hold the active resolver).
+func scanGetpropDNS() []string {
+	out, err := exec.Command("/system/bin/getprop").Output()
 	if err != nil {
-		return ""
+		return nil
 	}
-	return strings.TrimSpace(string(out))
+	var res []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(strings.ToLower(line), "dns") {
+			continue
+		}
+		i := strings.Index(line, "]: [")
+		if i < 0 {
+			continue
+		}
+		val := strings.TrimSpace(strings.TrimSuffix(line[i+4:], "]"))
+		if val != "" && net.ParseIP(val) != nil && !seen[val] {
+			seen[val] = true
+			res = append(res, val)
+		}
+	}
+	return res
 }
 
 // buildResolver returns a resolver that queries the given DNS servers directly,
@@ -116,11 +136,13 @@ func buildResolver() *net.Resolver {
 			var d net.Dialer
 			var lastErr error
 			for _, s := range servers {
-				c, err := d.DialContext(ctx, "udp", net.JoinHostPort(s, "53"))
-				if err == nil {
-					return c, nil
+				for _, proto := range []string{"udp", "tcp"} {
+					c, err := d.DialContext(ctx, proto, net.JoinHostPort(s, "53"))
+					if err == nil {
+						return c, nil
+					}
+					lastErr = err
 				}
-				lastErr = err
 			}
 			return nil, lastErr
 		},
