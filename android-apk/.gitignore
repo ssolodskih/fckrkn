@@ -1,0 +1,16 @@
+# Signing keys — never commit
+*.keystore
+*.jks
+
+# Generated .aar (rebuilt by build.sh via gomobile bind)
+app/app/libs/yacf.aar
+yacf/yacf-sources.jar
+
+# Gradle / Android build output
+app/.gradle/
+app/build/
+app/app/build/
+app/local.properties
+
+# Go
+yacf/cmd/desktop/desktop

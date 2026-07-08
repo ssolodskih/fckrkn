@@ -72,10 +72,14 @@ Settings → Data and Storage → Proxy → Add proxy → **SOCKS5**
 **Phone can't reach `127.0.0.1`:** run `client.py` on the phone (Termux), a home router, or a Pi on the LAN,
 and point Telegram at that `LAN-IP:1080`.
 
-**Run it on an Android phone (one-tap homescreen widget):** see [`android/README.md`](android/README.md).
-Install is a single line pasted into Termux — a ~6 MB Go binary (no Python), downloaded from a whitelisted
-Yandex storage bucket (works on the locked-down network) with a GitHub fallback. Telegram on the same phone
-then uses `SOCKS5 127.0.0.1:1080`.
+**Run it on an Android phone — native app (recommended):** see [`android-apk/README.md`](android-apk/README.md).
+A standalone APK (no Termux, no Python) built with gomobile: download the signed `.apk` from the whitelisted
+Yandex bucket, sideload, paste the setup code, tap ON. As a normal app the DNS/TLS/ELF on-device hacks the
+Termux path needs all disappear. Telegram on the same phone then uses `SOCKS5 127.0.0.1:1080`.
+
+**Termux fallback:** see [`android/README.md`](android/README.md). Install is a single line pasted into
+Termux — a ~6 MB Go binary downloaded from the same whitelisted bucket (GitHub fallback). Use this if you
+can't sideload an APK.
 
 ## Test locally (no deploy)
 
