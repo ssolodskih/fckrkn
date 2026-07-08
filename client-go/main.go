@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -30,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -191,7 +193,50 @@ func newConfig() (*config, error) {
 	// Resolve DNS via the system servers (Android has no resolv.conf).
 	dialer := &net.Dialer{Timeout: 10 * time.Second, Resolver: buildResolver()}
 	cfg.dialCtx = dialer.DialContext
+	// Load a usable trust store unless verification is disabled.
+	if !cfg.tlsCfg.InsecureSkipVerify {
+		cfg.tlsCfg.RootCAs = rootCAs()
+	}
 	return cfg, nil
+}
+
+// rootCAs assembles a trust store that works on Android, where a static Go
+// binary finds no system roots (x509: certificate signed by unknown authority).
+// Pulls in Go's SystemCertPool (honors SSL_CERT_FILE), Termux's ca bundle, and
+// Android's system/APEX CA directories.
+func rootCAs() *x509.CertPool {
+	pool, _ := x509.SystemCertPool()
+	if pool == nil {
+		pool = x509.NewCertPool()
+	}
+	for _, f := range []string{
+		os.Getenv("SSL_CERT_FILE"),
+		os.Getenv("PREFIX") + "/etc/tls/cert.pem",
+		"/data/data/com.termux/files/usr/etc/tls/cert.pem",
+	} {
+		if f == "" {
+			continue
+		}
+		if b, err := os.ReadFile(f); err == nil {
+			pool.AppendCertsFromPEM(b)
+		}
+	}
+	// Android trust store: one PEM per file in these dirs.
+	for _, d := range []string{
+		"/system/etc/security/cacerts",
+		"/apex/com.android.conscrypt/cacerts",
+	} {
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if b, err := os.ReadFile(filepath.Join(d, e.Name())); err == nil {
+				pool.AppendCertsFromPEM(b)
+			}
+		}
+	}
+	return pool
 }
 
 // newSessionClient returns an *http.Client with its OWN transport, so its TCP
