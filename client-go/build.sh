@@ -20,7 +20,7 @@ build() {
       go build -trimpath -buildmode=pie -ldflags "-s -w" -o "$OUT/$name" . )
 }
 
-# Android phones are arm64. (32-bit arm needs cgo for PIE; skipped — arm64
+# Android phones are arm64. (32-bit arm needs cgo for PIE; skipped - arm64
 # covers effectively every phone from the last decade.)
 build linux arm64 yacfsocks-linux-arm64
 # Handy for testing the exact binary logic on a Linux desktop.

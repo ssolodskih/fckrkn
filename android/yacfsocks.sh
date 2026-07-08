@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# yacfsocks — homescreen-widget launcher (Termux:Widget runs this from ~/.shortcuts/).
+# yacfsocks - homescreen-widget launcher (Termux:Widget runs this from ~/.shortcuts/).
 # One tap: hold a wake lock, load config, start the Go proxy binary.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ CONFIG="$HOME/.config/yacfsocks/env"
 BIN="$HOME/.yacfsocks/yacfsocks"
 
 if [ ! -x "$BIN" ]; then
-  echo "Proxy binary missing at $BIN — run android/setup.sh first."
+  echo "Proxy binary missing at $BIN - run android/setup.sh first."
   exit 1
 fi
 

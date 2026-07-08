@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(codeField)
 
         root.addView(TextView(this).apply {
-            text = "— or —"
+            text = "- or -"
             setPadding(0, pad / 2, 0, pad / 2)
         })
         urlField = EditText(this).apply { hint = "FUNCTION_URL" }
@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
         val running = yacf.Yacf.running()
         toggle.text = if (running) "OFF" else "ON"
         status.text = when {
-            running && ProxyService.lastLog.isNotEmpty() -> "Running — ${ProxyService.lastLog}"
+            running && ProxyService.lastLog.isNotEmpty() -> "Running - ${ProxyService.lastLog}"
             running -> "Running on ${Store.LISTEN}"
             Store.hasCreds(this) -> "Stopped"
             else -> "Not configured"

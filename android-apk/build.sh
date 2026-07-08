@@ -8,7 +8,7 @@
 # build-tools 35.0.0 + ndk 27.2.12479018, gomobile/gobind, JDK 17.
 #
 # Signing: if YACF_KEYSTORE (+ YACF_KEYSTORE_PASS/YACF_KEY_ALIAS/YACF_KEY_PASS)
-# is set — via env or repo-root secrets.local.env — assembleRelease produces a
+# is set - via env or repo-root secrets.local.env - assembleRelease produces a
 # release-signed APK. Otherwise it falls back to the debug keystore (fine for
 # personal sideload). This script generates a local keystore on first run if
 # none is configured and you pass --release-key.
@@ -40,8 +40,8 @@ export ANDROID_HOME
 export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_HOME/ndk/27.2.12479018}"
 export PATH="$PATH:$(go env GOPATH)/bin"
 
-[ -d "$ANDROID_NDK_HOME" ] || { echo "NDK not found at $ANDROID_NDK_HOME — see README Step 0"; exit 1; }
-command -v gomobile >/dev/null 2>&1 || { echo "gomobile not on PATH — go install golang.org/x/mobile/cmd/gomobile@latest"; exit 1; }
+[ -d "$ANDROID_NDK_HOME" ] || { echo "NDK not found at $ANDROID_NDK_HOME - see README Step 0"; exit 1; }
+command -v gomobile >/dev/null 2>&1 || { echo "gomobile not on PATH - go install golang.org/x/mobile/cmd/gomobile@latest"; exit 1; }
 
 # --- optional: generate a local release keystore once ---
 KEYSTORE_DEFAULT="$HERE/release.keystore"
@@ -73,7 +73,7 @@ echo "==> Built $APK"
 if [ -n "${YACF_KEYSTORE:-}" ]; then
   echo "    (release-signed)"
 else
-  echo "    (debug-signed — fine for personal sideload)"
+  echo "    (debug-signed - fine for personal sideload)"
 fi
 
 # --- Step 4: publish to the Yandex bucket ---

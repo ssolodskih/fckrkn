@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# yacfsocks — one-liner Android/Termux installer (no git, no repo clone).
+# yacfsocks - one-liner Android/Termux installer (no git, no repo clone).
 #
 # Paste in Termux (the deployer gives you the exact line with a setup code):
 #   pkg install -y wget && wget -qO- "https://storage.yandexcloud.net/yacfsocks-dist/install.sh" | bash -s -- <SETUP-CODE>
@@ -24,7 +24,7 @@ SHORTCUTS_DIR="$HOME/.shortcuts"
 BOOT_DIR="$HOME/.termux/boot"
 BIN="$APP_DIR/yacfsocks"
 
-# dl <url> <outfile> — download with whatever works. Prefer wget: a broken
+# dl <url> <outfile> - download with whatever works. Prefer wget: a broken
 # Termux curl (openssl/HTTP-3 symbol mismatch) is common, and wget doesn't pull
 # in the QUIC libs that break. Fall back to curl if wget is absent.
 dl() {
@@ -38,7 +38,7 @@ dl() {
   return 1
 }
 
-# fetch <relpath> <outfile> — try each base until one works.
+# fetch <relpath> <outfile> - try each base until one works.
 fetch() {
   local rel="$1" out="$2" b
   for b in "${BASES[@]}"; do
@@ -100,7 +100,7 @@ if { [ -z "$FUNC_URL_VAL" ] || [ -z "$TOKEN_VAL" ]; } && [ -n "${1:-}" ]; then
   fi
 fi
 
-# Under `curl | bash`, stdin is the script, not the keyboard — so prompt on the
+# Under `curl | bash`, stdin is the script, not the keyboard - so prompt on the
 # controlling terminal explicitly.
 if [ -z "$FUNC_URL_VAL" ] || [ -z "$TOKEN_VAL" ]; then
   if [ -e /dev/tty ]; then

@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# yacfsocks — one-time Android/Termux setup (Go binary, no Python).
+# yacfsocks - one-time Android/Termux setup (Go binary, no Python).
 #
 # Run this ONCE inside Termux:
 #   bash setup.sh                 # then paste FUNCTION_URL + TOKEN when asked
@@ -26,7 +26,7 @@ case "$ARCH" in
   *) echo "Unsupported CPU '$ARCH'. Only arm64/amd64 binaries are shipped."; exit 1 ;;
 esac
 if [ ! -f "$SRC" ]; then
-  echo "Missing binary $SRC — build it first: (on a computer) cd client-go && ./build.sh"
+  echo "Missing binary $SRC - build it first: (on a computer) cd client-go && ./build.sh"
   exit 1
 fi
 
@@ -121,7 +121,7 @@ chmod +x "$BOOT_DIR/yacfsocks-boot.sh"
 
 echo
 if grep -q "REPLACE_WITH_" "$CONFIG_DIR/env" 2>/dev/null; then
-  echo "IMPORTANT — do this now:"
+  echo "IMPORTANT - do this now:"
   echo "  Put your FUNCTION_URL and TOKEN into the config file:"
   echo "      nano $CONFIG_DIR/env"
   echo "  (or re-run: bash setup.sh <SETUP-CODE>)"

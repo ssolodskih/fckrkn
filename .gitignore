@@ -1,4 +1,4 @@
-# Local secrets — never commit
+# Local secrets - never commit
 secrets.local.env
 *.local.env
 
@@ -15,7 +15,7 @@ venv/
 # macOS
 .DS_Store
 
-# Go build artifacts — ship only the arm64 phone binary
+# Go build artifacts - ship only the arm64 phone binary
 android/bin/yacfsocks-linux-amd64
 client-go/yacfsocks
 /tmp/yacfsocks-local

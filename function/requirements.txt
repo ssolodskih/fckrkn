@@ -1,1 +1,1 @@
-# No third-party dependencies — stdlib only.
+# No third-party dependencies - stdlib only.

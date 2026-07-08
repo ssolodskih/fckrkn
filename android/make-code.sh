@@ -27,7 +27,7 @@ STORAGE="https://storage.yandexcloud.net/$BUCKET/install.sh"
 GITHUB="https://raw.githubusercontent.com/ssolodskih/fckrkn/master/android/install.sh"
 
 echo "Send the phone user ONE of these lines to paste in Termux."
-echo "(It carries FUNCTION_URL + TOKEN — treat it like the token itself.)"
+echo "(It carries FUNCTION_URL + TOKEN - treat it like the token itself.)"
 echo
 echo "Works on the locked-down network (Yandex, whitelisted):"
 echo

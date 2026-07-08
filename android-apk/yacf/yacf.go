@@ -5,7 +5,7 @@
 // availability zone with no session stickiness, BUT a single HTTP keep-alive
 // connection pins to one instance. So each SOCKS session gets its own
 // *http.Client (its own pinned connection) and drives it serially with one
-// "exchange" call per round — send-upstream + return-downstream — so all its
+// "exchange" call per round - send-upstream + return-downstream - so all its
 // calls reach the instance that holds its socket.
 //
 // This is a self-contained copy of the relay core from client-go/main.go,
@@ -115,7 +115,7 @@ func newConfig(functionURL, token, listen string, logger Logger) (*config, error
 
 // newSessionClient returns an *http.Client with its OWN transport, so its TCP
 // connection is isolated from other sessions and reused across this session's
-// serial calls — i.e. pinned to one warm instance. HTTP/1.1 only (one request
+// serial calls - i.e. pinned to one warm instance. HTTP/1.1 only (one request
 // in flight at a time per connection matches the serial exchange loop).
 func (c *config) newSessionClient() *http.Client {
 	tr := &http.Transport{

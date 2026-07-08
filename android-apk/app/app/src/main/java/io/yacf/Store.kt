@@ -45,7 +45,7 @@ object Store {
     }
 
     /**
-     * Parse a pasted setup code = base64("FUNCTION_URL|TOKEN") — the same format
+     * Parse a pasted setup code = base64("FUNCTION_URL|TOKEN") - the same format
      * android/make-code.sh emits. Returns (url, token) or null if it doesn't
      * decode to that shape.
      */

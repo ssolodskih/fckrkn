@@ -1,6 +1,6 @@
 // Command desktop runs the yacf relay core on a normal machine so the copied
 // core can be tested against the live function without a phone. It is NOT
-// shipped in the APK — the app calls yacf.Start directly.
+// shipped in the APK - the app calls yacf.Start directly.
 //
 // Config via env (same names as the Go client): FUNCTION_URL, TOKEN, LISTEN
 // (default 127.0.0.1:1080), DEBUG=1 for per-exchange logs.

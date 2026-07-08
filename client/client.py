@@ -1,11 +1,11 @@
-"""yacfsocks local client — a minimal SOCKS5 server that tunnels each TCP
+"""yacfsocks local client - a minimal SOCKS5 server that tunnels each TCP
 connection to a Yandex Cloud Function over HTTPS.
 
 Telegram points its SOCKS5 proxy at this. YC spreads invocations across one
 instance per availability zone with no session stickiness, BUT a single HTTP
 keep-alive connection pins to one instance. So each SOCKS session gets its own
 keep-alive connection and drives it serially with one `exchange` call
-(send-upstream + return-downstream) — all its calls reach the instance that
+(send-upstream + return-downstream) - all its calls reach the instance that
 holds its socket.
 
     FUNCTION_URL=https://functions.yandexcloud.net/<id> TOKEN=secret python client.py

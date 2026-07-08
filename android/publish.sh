@@ -7,7 +7,7 @@
 #   BUCKET=my-bucket ./publish.sh
 #
 # Uploads (public-read): install.sh, bin/yacfsocks-linux-{arm64,amd64},
-# yacfsocks.sh, boot.sh — the same relative paths install.sh fetches.
+# yacfsocks.sh, boot.sh - the same relative paths install.sh fetches.
 # Only non-secret assets go here; the token lives only in the setup code.
 set -euo pipefail
 
@@ -18,7 +18,7 @@ command -v "$YC" >/dev/null 2>&1 || YC=/Users/ssman/yandex-cloud/bin/yc
 
 ARM64="$HERE/bin/yacfsocks-linux-arm64"
 AMD64="$HERE/bin/yacfsocks-linux-amd64"
-[ -f "$ARM64" ] || { echo "missing $ARM64 — build first: cd ../client-go && ./build.sh"; exit 1; }
+[ -f "$ARM64" ] || { echo "missing $ARM64 - build first: cd ../client-go && ./build.sh"; exit 1; }
 
 # Create the bucket (public-read) if it doesn't exist.
 if ! "$YC" storage bucket get --name "$BUCKET" >/dev/null 2>&1; then

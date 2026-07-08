@@ -13,7 +13,7 @@ import androidx.core.app.NotificationCompat
 
 /**
  * Foreground service that owns the SOCKS5 listener via yacf.aar. START_STICKY so
- * Android restarts it if killed. Loopback listener on 127.0.0.1:1080 — other
+ * Android restarts it if killed. Loopback listener on 127.0.0.1:1080 - other
  * apps (Telegram) connect there.
  */
 class ProxyService : Service() {
@@ -43,7 +43,7 @@ class ProxyService : Service() {
             val url = Store.url(this)
             val token = Store.token(this)
             if (url.isNullOrEmpty() || token.isNullOrEmpty()) {
-                update("No credentials — open the app")
+                update("No credentials - open the app")
                 stopSelf()
                 return@Thread
             }

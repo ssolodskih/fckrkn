@@ -1,4 +1,4 @@
-# yacfsocks — Project Notes (agent handoff)
+# yacfsocks - Project Notes (agent handoff)
 
 Everything a future agent needs to understand, operate, and extend this project. Read this before touching
 anything. Companion docs: `README.md` (user-facing usage), this file (design + history + gotchas).
@@ -23,25 +23,25 @@ The function is a **transparent byte relay**. Telegram runs its own MTProto end-
 we add no crypto and do not parse MTProto.
 
 This method is documented (in principle) on Habr: «Белые списки: способы обхода»
-<https://habr.com/ru/articles/1027276/> — "functions.yandexcloud.net is universally whitelisted; write a
+<https://habr.com/ru/articles/1027276/> - "functions.yandexcloud.net is universally whitelisted; write a
 SOCKS5 client to connect to the function." That article states *that* it works, not *how*; this repo is a
 working *how*.
 
-**Hard requirement from the user (do not relitigate):** must be a plain **Cloud Function** — NOT a VM, NOT a
+**Hard requirement from the user (do not relitigate):** must be a plain **Cloud Function** - NOT a VM, NOT a
 Serverless Container. This constraint drove every hard design decision below.
 
 ---
 
 ## 2. The two-component architecture
 
-- **`client/client.py`** — runs LOCALLY where Telegram can reach it (PC `127.0.0.1`, or a phone via Termux /
+- **`client/client.py`** - runs LOCALLY where Telegram can reach it (PC `127.0.0.1`, or a phone via Termux /
   a LAN box). A minimal asyncio **SOCKS5 server** (RFC 1928 + RFC 1929: no-auth and user/pass). It is the
   "minimalistic SOCKS5 client" of the original brief: SOCKS5 to Telegram, HTTPS tunnel-client to the function.
-- **`function/handler.py`** — DEPLOYED to the Cloud Function. A **stdlib-only TCP relay**. Opens sockets to
+- **`function/handler.py`** - DEPLOYED to the Cloud Function. A **stdlib-only TCP relay**. Opens sockets to
   Telegram DCs and shuttles bytes.
 
-Telegram never talks to the function directly — it only speaks raw-TCP SOCKS5/MTProto, never `https://`.
-The local client is therefore **mandatory** (every comparable project — Flowseal/tg-ws-proxy, yac-ws-bridge —
+Telegram never talks to the function directly - it only speaks raw-TCP SOCKS5/MTProto, never `https://`.
+The local client is therefore **mandatory** (every comparable project - Flowseal/tg-ws-proxy, yac-ws-bridge -
 has one). Do not try to remove it.
 
 ---
@@ -55,7 +55,7 @@ JSON POST body to the single function URL. `token` (shared secret) on every call
 | `open`     | `{dst:"ip:port"}`      | `{sid, port}` or `{error}` |
 | `exchange` | `{sid, data?:<b64>}`   | `{data:<b64>, closed:bool}` or `{error}` |
 | `close`    | `{sid}`                | `{ok:true}` |
-| `ping`     | —                      | `{ok, sessions, iid}` (iid = instance id, for debugging) |
+| `ping`     | -                      | `{ok, sessions, iid}` (iid = instance id, for debugging) |
 
 `exchange` is a **serial ping-pong**: the client sends any pending upstream bytes and the server, after
 writing them to the DC socket, waits up to `EXCHANGE_WAIT` (default 0.5s) for downstream bytes and returns
@@ -68,7 +68,7 @@ them. One `exchange` in flight at a time per session.
 
 ## 4. THE critical design decision (read this or you will break it)
 
-A plain Cloud Function **cannot** naively hold a TCP stream, for two independent reasons — both empirically
+A plain Cloud Function **cannot** naively hold a TCP stream, for two independent reasons - both empirically
 verified against the live function, not assumed:
 
 1. **No streaming.** Request body is fully buffered; the response is a single JSON object; WebSocket-via-API-
@@ -80,9 +80,9 @@ verified against the live function, not assumed:
    module-global `SESSIONS` dict on whichever instance handled `open`. Naive per-call requests scatter across
    the 3 instances → the socket is missing 2/3 of the time → `no_session` → dead connection. Measured: 20
    pings returned 3 distinct instance ids (~7/9/4). Attaching a VPC network did NOT reduce this (still 3).
-   `--provisioned-instances-count 1` means 1 warm *per zone*, i.e. 3 total — it does NOT pin to one instance.
+   `--provisioned-instances-count 1` means 1 warm *per zone*, i.e. 3 total - it does NOT pin to one instance.
 
-**The fix — keep-alive pinning.** A single HTTP keep-alive connection sticks to ONE instance for its lifetime
+**The fix - keep-alive pinning.** A single HTTP keep-alive connection sticks to ONE instance for its lifetime
 (verified: 15/15 requests on one connection → one iid). So **each SOCKS session opens its own keep-alive
 connection and drives it serially** with `open` then `exchange`…`exchange` then `close`. All of a session's
 calls reach the instance that owns its socket. Different sessions may pin to different instances; each is
@@ -98,14 +98,14 @@ connection, the `no_session` bug returns. Don't.
 
 1. **macOS TLS: `CERTIFICATE_VERIFY_FAILED`.** Stock macOS python.org Python has no CA bundle, so every HTTPS
    call to the function failed. Fix: client uses `certifi` if importable, else honours `INSECURE=1`
-   (skips TLS verify — acceptable because payload is inside Telegram's own MTProto crypto). **`certifi` is
+   (skips TLS verify - acceptable because payload is inside Telegram's own MTProto crypto). **`certifi` is
    already `pip`-installed** in `/Library/Frameworks/Python.framework/Versions/3.13`, so it works with no flag.
 
 2. **RU/DPI blocks port 443 on some DC ranges from Yandex egress** (notably `149.154.167.x` = DC2/DC4). MTProto
    rides `443/80/5222` identically for the *same DC IP*, so `_open` retries the other ports on the same IP when
    one times out (transparent to Telegram: same IP = same DC). Measured: `149.154.167.x:443` timed out but
    `:80`/`:5222` were open; `149.154.175.x`/`91.108.56.x:443` mostly open. Reachability also *flaps* per
-   request — the port fallback + Telegram's own retries absorb it.
+   request - the port fallback + Telegram's own retries absorb it.
 
 3. **HTTP 429 Too Many Requests.** YC default quota = **10 concurrent function calls per zone**. Each active
    session holds ~1 in-flight `exchange`. Fix: client caps concurrent calls with a semaphore (`MAX_INFLIGHT`,
@@ -128,7 +128,7 @@ connection, the `no_session` bug returns. Don't.
   warm to avoid mid-session cold starts)
 - **Env:** `TOKEN`, `EXCHANGE_WAIT=0.5`. Allowlist ON (open relay disabled).
 - **Public invoke:** enabled (`allow-unauthenticated-invoke`). Access is gated by `TOKEN` in the body, not IAM.
-- **Default VPC network in folder:** `enp39m10qfodcgunl724` (NOT attached to the function — attaching did not
+- **Default VPC network in folder:** `enp39m10qfodcgunl724` (NOT attached to the function - attaching did not
   help and isn't needed).
 
 **Secrets.** The shared secret `TOKEN` and the function id are kept OUT of this repo (public). Real values
@@ -164,7 +164,7 @@ yacfsocks/
 ```
 
 Key handler config (env-overridable): `TOKEN`, `EXCHANGE_WAIT` (0.5), `CONNECT_TIMEOUT` (5, per-port attempt),
-`IDLE_TIMEOUT` (120, session reaper), `ALLOW_ALL` (unset; set `1` ONLY for diagnostics — turns it into an open
+`IDLE_TIMEOUT` (120, session reaper), `ALLOW_ALL` (unset; set `1` ONLY for diagnostics - turns it into an open
 relay), allowlist `TELEGRAM_CIDRS` + `ALLOWED_PORTS {80,443,5222}`.
 
 Client env/flags: `FUNCTION_URL`, `TOKEN`, `LISTEN` (127.0.0.1:1080), `SOCKS_USER`/`SOCKS_PASS`,
@@ -197,7 +197,7 @@ phone (Termux) / router / a LAN box and point Telegram at that `LAN-IP:1080`.
   SOCKS5 + relay + byte round-trip.
 - **Function reachable / token:** `curl -sS -X POST "$URL" -d '{"action":"ping","token":"'"$TOKEN"'"}'` →
   `{ok, sessions, iid}`.
-- **Instance spread:** loop `ping` and `uniq -c` the `iid`s — expect ~3 distinct (the whole reason for pinning).
+- **Instance spread:** loop `ping` and `uniq -c` the `iid`s - expect ~3 distinct (the whole reason for pinning).
 - **DC reachability / port fallback:** `curl -sS -X POST "$URL" -d '{"action":"open","token":"'"$TOKEN"'","dst":"149.154.167.51:443"}'`
   → `{sid, port}` (port shows which port fallback landed on).
 - **Full data path through DEPLOYED function:** temporarily deploy a version with `ALLOW_ALL=1`, then
@@ -230,12 +230,12 @@ phone (Termux) / router / a LAN box and point Telegram at that `LAN-IP:1080`.
 ## 11. Verified facts about YC Cloud Functions (with sources)
 
 - Instances are reused across invocations; declarations outside the handler stay initialized (like a reused DB
-  connection) — <https://yandex.cloud/en/docs/functions/concepts/runtime/execution-context>. BUT this is
+  connection) - <https://yandex.cloud/en/docs/functions/concepts/runtime/execution-context>. BUT this is
   per-instance and there are multiple zonal instances → needs the keep-alive pin.
 - Default egress: isolated network + NAT, **public IPv4 only**, outbound TCP/UDP/ICMP; inbound not supported;
-  TCP/25 blocked — <https://yandex.cloud/en/docs/functions/concepts/networking>.
+  TCP/25 blocked - <https://yandex.cloud/en/docs/functions/concepts/networking>.
 - Execution timeout 1–900s (we use 60s). Request buffered, single JSON response (no streaming).
-- Default quota: **10 concurrent calls per zone**, 10 instances per zone —
+- Default quota: **10 concurrent calls per zone**, 10 instances per zone -
   <https://yandex.cloud/en/docs/functions/concepts/limits>.
 - `--min-instances` is NOT a `version create` flag; warm instances are a separate scaling policy
   (`yc serverless function set-scaling-policy --provisioned-instances-count N --zone-instances-limit M`).
@@ -251,5 +251,5 @@ phone (Termux) / router / a LAN box and point Telegram at that `LAN-IP:1080`.
 - Consider MTProto-aware obfuscation / fake-TLS on the client↔function hop if the plain WSS/HTTPS pattern is
   ever fingerprinted (currently it's ordinary TLS to `*.yandexcloud.net`, which is the whole point).
 - If the user ever relaxes the "function only" rule, a Serverless Container removes the pinning/quota gymnastics
-  (single addressable endpoint, holds the socket) — but that was explicitly rejected.
+  (single addressable endpoint, holds the socket) - but that was explicitly rejected.
 ```

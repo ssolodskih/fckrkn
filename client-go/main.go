@@ -1,11 +1,11 @@
-// yacfsocks local client (Go port of client.py) — a minimal SOCKS5 server that
+// yacfsocks local client (Go port of client.py) - a minimal SOCKS5 server that
 // tunnels each TCP connection to a Yandex Cloud Function over HTTPS.
 //
 // YC spreads invocations across one instance per availability zone with no
 // session stickiness, BUT a single HTTP keep-alive connection pins to one
 // instance. So each SOCKS session gets its own *http.Client (its own pinned
-// connection) and drives it serially with one "exchange" call per round —
-// send-upstream + return-downstream — so all its calls reach the instance that
+// connection) and drives it serially with one "exchange" call per round -
+// send-upstream + return-downstream - so all its calls reach the instance that
 // holds its socket.
 //
 // Config via env: FUNCTION_URL, TOKEN, LISTEN (host:port, default
@@ -68,7 +68,7 @@ type config struct {
 }
 
 // Public resolvers used only if the phone's own DNS can't be discovered.
-// (Yandex DNS included — most likely reachable on a Yandex-whitelisted network.)
+// (Yandex DNS included - most likely reachable on a Yandex-whitelisted network.)
 var fallbackDNS = []string{"77.88.8.8", "1.1.1.1", "8.8.8.8"}
 
 // dnsServers returns the DNS resolver addresses to use. Android has no
@@ -241,7 +241,7 @@ func rootCAs() *x509.CertPool {
 
 // newSessionClient returns an *http.Client with its OWN transport, so its TCP
 // connection is isolated from other sessions and reused across this session's
-// serial calls — i.e. pinned to one warm instance. HTTP/1.1 only (one request
+// serial calls - i.e. pinned to one warm instance. HTTP/1.1 only (one request
 // in flight at a time per connection matches the serial exchange loop).
 func (c *config) newSessionClient() *http.Client {
 	tr := &http.Transport{
