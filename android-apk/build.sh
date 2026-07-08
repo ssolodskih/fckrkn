@@ -85,8 +85,10 @@ if [ "$PUBLISH" = 1 ]; then
     "$YC" storage bucket create --name "$BUCKET" --public-read
   fi
   KEY="yacfsocks.apk"
-  echo "==> Uploading $KEY (public-read)"
-  "$YC" storage s3 cp --acl public-read "$APK" "s3://$BUCKET/$KEY" >/dev/null
+  echo "==> Uploading $KEY"
+  # Bucket is created --public-read (anonymous read), so objects are readable
+  # without a per-object ACL; `yc storage s3 cp` rejects --acl on objects.
+  "$YC" storage s3 cp "$APK" "s3://$BUCKET/$KEY" >/dev/null
   URL="https://storage.yandexcloud.net/$BUCKET/$KEY"
   echo
   echo "Published: $URL"
