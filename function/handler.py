@@ -7,11 +7,10 @@ warm. Pin traffic to one warm instance with ``--min-instances 1`` and a high
 ``--concurrency`` so every call for a session reaches the process that owns it.
 
 Protocol (JSON body, one public endpoint):
-  {action: "open",  token, dst: "ip:port"}      -> {sid}
-  {action: "up",    token, sid, data: <b64>}     -> {ok: true}
-  {action: "down",  token, sid}                  -> {data: <b64>, closed: bool}  (long-poll)
-  {action: "close", token, sid}                  -> {ok: true}
-  {action: "ping",  token}                       -> {ok: true, sessions: n}
+  {action: "open",     token, dst: "ip:port"}    -> {sid}
+  {action: "exchange", token, sid, data: <b64>}  -> {data: <b64>, closed: bool}  (send+long-poll)
+  {action: "close",    token, sid}               -> {ok: true}
+  {action: "ping",     token}                    -> {ok: true, sessions: n}
 """
 
 import base64
@@ -26,7 +25,6 @@ import uuid
 
 TOKEN = os.environ.get("TOKEN", "")
 IDLE_TIMEOUT = float(os.environ.get("IDLE_TIMEOUT", "120"))
-DOWN_TIMEOUT = float(os.environ.get("DOWN_TIMEOUT", "50"))
 CONNECT_TIMEOUT = float(os.environ.get("CONNECT_TIMEOUT", "5"))  # per-port attempt
 EXCHANGE_WAIT = float(os.environ.get("EXCHANGE_WAIT", "0.5"))  # downstream long-poll per exchange
 ALLOW_ALL = os.environ.get("ALLOW_ALL", "") == "1"
@@ -125,48 +123,6 @@ def _open(dst):
     return {"error": "connect_failed", "detail": last}
 
 
-def _up(sid, data_b64):
-    s = _touch(sid)
-    if not s:
-        return {"error": "no_session"}
-    if data_b64:
-        try:
-            s["sock"].sendall(base64.b64decode(data_b64))
-        except OSError as e:
-            _drop(sid)
-            return {"error": "send_failed", "detail": str(e)}
-    return {"ok": True}
-
-
-def _down(sid):
-    s = _touch(sid)
-    if not s:
-        return {"error": "no_session"}
-    sock = s["sock"]
-    deadline = time.time() + DOWN_TIMEOUT
-    while True:
-        remaining = deadline - time.time()
-        if remaining <= 0:
-            return {"data": "", "closed": False}  # nothing yet; client re-polls
-        try:
-            r, _, _ = select.select([sock], [], [], min(remaining, 1.0))
-        except OSError:
-            _drop(sid)
-            return {"data": "", "closed": True}
-        if not r:
-            continue
-        try:
-            chunk = sock.recv(65536)
-        except OSError:
-            _drop(sid)
-            return {"data": "", "closed": True}
-        if chunk == b"":
-            _drop(sid)
-            return {"data": "", "closed": True}
-        _touch(sid)
-        return {"data": base64.b64encode(chunk).decode(), "closed": False}
-
-
 def _exchange(sid, data_b64):
     """Serial send+receive for one pinned keep-alive connection: write any
     upstream bytes, then wait up to EXCHANGE_WAIT for downstream bytes."""
@@ -230,10 +186,6 @@ def handler(event, context):
     try:
         if action == "open":
             out = _open(req["dst"])
-        elif action == "up":
-            out = _up(req["sid"], req.get("data", ""))
-        elif action == "down":
-            out = _down(req["sid"])
         elif action == "exchange":
             out = _exchange(req["sid"], req.get("data", ""))
         elif action == "close":

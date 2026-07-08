@@ -25,7 +25,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "function"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "client"))
 
 os.environ["ALLOW_ALL"] = "1"       # echo server is not a Telegram IP
-os.environ["DOWN_TIMEOUT"] = "5"    # keep the test snappy
 
 import handler as fn          # noqa: E402
 import client as cl           # noqa: E402

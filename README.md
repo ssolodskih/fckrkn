@@ -101,8 +101,9 @@ python test_e2e.py --auth   # user/pass
   rides `443/80/5222` identically per DC IP, so the relay retries the other ports on the same IP when one times
   out. This is transparent to Telegram (same DC IP = same DC).
 - **Concurrency quota.** YC allows **10 concurrent function calls per zone** by default. Each live connection
-  holds one slot (its `down` long-poll), so the client caps in-flight calls at `MAX_INFLIGHT=9` and retries on
-  429 - bursts queue instead of failing. Handles a few simultaneous Telegram connections; for heavier use, ask
-  YC support to raise the "concurrent function invocations" quota and bump `MAX_INFLIGHT`.
-- Free tier is 1M invocations/mo; long-poll `DOWN_TIMEOUT≈50s` keeps the call count low.
+  holds one slot (its in-flight `exchange` call), so the client caps in-flight calls at `MAX_INFLIGHT=9` and
+  retries on 429 - bursts queue instead of failing. Handles a few simultaneous Telegram connections; for heavier
+  use, ask YC support to raise the "concurrent function invocations" quota and bump `MAX_INFLIGHT`.
+- Free tier is 1M invocations/mo; each `exchange` round is one invocation, and an idle session long-polls up to
+  `EXCHANGE_WAIT` (server, default 0.5s) per call.
 - This bypass has been targeted before - keep the URL private and redeploy (new function) if it stops working.

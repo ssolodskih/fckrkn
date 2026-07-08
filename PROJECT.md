@@ -245,9 +245,7 @@ phone (Termux) / router / a LAN box and point Telegram at that `LAN-IP:1080`.
 
 ## 12. Ideas / next steps (not done)
 
-- Delete dead `up`/`down` handler actions.
 - Batch multiple 64 KB chunks per `exchange` to improve media throughput.
-- Optional: raise the concurrency quota (support ticket) and increase `MAX_INFLIGHT` for multi-user.
 - Consider MTProto-aware obfuscation / fake-TLS on the client↔function hop if the plain WSS/HTTPS pattern is
   ever fingerprinted (currently it's ordinary TLS to `*.yandexcloud.net`, which is the whole point).
 - If the user ever relaxes the "function only" rule, a Serverless Container removes the pinning/quota gymnastics
