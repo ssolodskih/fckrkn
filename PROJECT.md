@@ -27,9 +27,6 @@ This method is documented (in principle) on Habr: «Белые списки: с�
 SOCKS5 client to connect to the function." That article states *that* it works, not *how*; this repo is a
 working *how*.
 
-**Hard requirement from the user (do not relitigate):** must be a plain **Cloud Function** - NOT a VM, NOT a
-Serverless Container. This constraint drove every hard design decision below.
-
 ---
 
 ## 2. The two-component architecture
@@ -128,21 +125,42 @@ connection, the `no_session` bug returns. Don't.
   warm to avoid mid-session cold starts)
 - **Env:** `TOKEN`, `EXCHANGE_WAIT=0.5`. Allowlist ON (open relay disabled).
 - **Public invoke:** enabled (`allow-unauthenticated-invoke`). Access is gated by `TOKEN` in the body, not IAM.
-- **Default VPC network in folder:** `enp39m10qfodcgunl724` (NOT attached to the function - attaching did not
-  help and isn't needed).
+- **Default VPC network in folder:** exists but NOT attached to the function - attaching did not help and
+  isn't needed. (Its id, like all resource ids, stays in gitignored `secrets.local.env` if you need it.)
 
-**Secrets.** The shared secret `TOKEN` and the function id are kept OUT of this repo (public). Real values
-live in the gitignored `secrets.local.env` at the repo root. `TOKEN` is NOT sensitive beyond gating this
-relay; prefer fetching the canonical value from the deployed function, and rotate by redeploying with a new
-`TOKEN`:
+**Serverless Container (live - current default target, same protocol).** `deploy-container.sh` builds
+`function/Dockerfile` (`python:3.14-slim`, runs `serve_local.py` on `0.0.0.0:8080`, built `--platform
+linux/amd64` - YC runs amd64), pushes it to Container Registry `yacfsocks`, deploys a revision (`--cores 1
+--memory 256m --execution-timeout 60s --concurrency 16 --min-instances 1 --zone-instances-limit 1`, env
+`TOKEN`/`EXCHANGE_WAIT=0.5`, `--service-account-id` - containers require an SA to pull the image), and enables
+`allow-unauthenticated-invoke`.
+- **Container name/id:** `yacfsocks` / `<CONTAINER_ID>` (`yc serverless container get --name yacfsocks`)
+- **URL:** `https://<CONTAINER_ID>.containers.yandexcloud.net/` (under `*.yandexcloud.net`, whitelisted; real
+  value in gitignored `secrets.local.env`)
+- **Registry / SA:** both named `yacfsocks` (`yc container registry get --name yacfsocks`,
+  `yc iam service-account get --name yacfsocks`); SA holds role `container-registry.images.puller`. The Cloud
+  Function stays deployed as a fallback; both share the same `TOKEN`, so the client works against either by
+  swapping `FUNCTION_URL`.
+- The client is byte-for-byte identical; only `FUNCTION_URL` changes. **Verified live (2026-07-12):** ping
+  works; 15 pings over one keep-alive connection returned a single `iid` (affinity holds - the pin works on
+  containers exactly as on the function); fresh connections spread across 3 instances (one per zone); `open`
+  to real Telegram DCs (`149.154.167.51`, `149.154.175.53`, `91.108.56.130`) succeeds with `exchange`/`close`;
+  allowlist rejects non-Telegram (`1.1.1.1` -> `dst_not_allowed`); and a real `client.py` -> container SOCKS5
+  CONNECT to a DC returns success. Direct-invoke caps request/response at 3.5 MB (fine for ≤64 KB `exchange`
+  chunks); request timeout can go to 1 hour.
+
+**Secrets.** The shared secret `TOKEN` and the function/container id are kept OUT of this repo (public). Real
+values live in the gitignored `secrets.local.env` at the repo root. `TOKEN` is NOT sensitive beyond gating
+this relay; prefer fetching the canonical value from the deployed function, and rotate by redeploying with a
+new `TOKEN`:
 
 ```bash
 yc serverless function version get-by-tag --function-name yacfsocks --tag '$latest' --format json \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["environment"]["TOKEN"])'
+  | uv run python -c 'import sys,json;print(json.load(sys.stdin)["environment"]["TOKEN"])'
 ```
 
 `yc` CLI is installed at `/Users/ssman/yandex-cloud/bin/yc` and is authenticated with rights to manage this
-function.
+function and the container.
 
 ---
 
@@ -152,12 +170,14 @@ function.
 yacfsocks/
 ├── function/
 │   ├── handler.py        # deployed relay: SESSIONS dict, _open (port fallback), _exchange, allowlist, INSTANCE_ID
-│   ├── serve_local.py    # ThreadingHTTPServer wrapper to run handler locally (ALLOW_ALL=1 PORT=8080)
+│   ├── serve_local.py    # HTTP wrapper (ThreadingHTTPServer); local test + container entrypoint (HOST/PORT env)
+│   ├── Dockerfile        # python:3.14-slim image for the Serverless Container
 │   └── requirements.txt  # empty (stdlib only)
 ├── client/
 │   ├── client.py         # local SOCKS5 server + per-session keep-alive exchange loop
 │   └── requirements.txt  # empty (stdlib; certifi optional but recommended)
-├── deploy.sh             # yc: create-if-missing, version create, scaling policy, allow-invoke, print URL
+├── deploy.sh             # yc: Cloud Function - create-if-missing, version create, scaling policy, allow-invoke
+├── deploy-container.sh   # yc + docker: Serverless Container - registry, build/push, revision deploy, allow-invoke
 ├── test_e2e.py           # one-process end-to-end: echo <- function <- client <- raw SOCKS5
 ├── README.md             # user-facing
 └── PROJECT.md            # this file
@@ -248,6 +268,20 @@ phone (Termux) / router / a LAN box and point Telegram at that `LAN-IP:1080`.
 - Batch multiple 64 KB chunks per `exchange` to improve media throughput.
 - Consider MTProto-aware obfuscation / fake-TLS on the client↔function hop if the plain WSS/HTTPS pattern is
   ever fingerprinted (currently it's ordinary TLS to `*.yandexcloud.net`, which is the whole point).
-- If the user ever relaxes the "function only" rule, a Serverless Container removes the pinning/quota gymnastics
-  (single addressable endpoint, holds the socket) - but that was explicitly rejected.
+- **Serverless Container (done as a deploy target; did NOT remove the gymnastics).** The "function only" rule
+  was relaxed 2026-07-12 and `deploy-container.sh` now ships the same relay as a container. The earlier hope -
+  "single addressable endpoint, holds the socket" - turned out to be wrong on the platform facts:
+  - YC distributes container instances across availability zones **randomly with no stickiness**, so the same
+    multi-instance scatter exists → the keep-alive pin is still mandatory.
+  - Direct invoke caps request AND response at **3.5 MB** → strongly implies buffered, non-streaming bodies, so
+    "one long request streams the whole session" is blocked. (Fine for the ≤64 KB `exchange` ping-pong.)
+  - WebSocket is only via **API Gateway**, whose model dispatches each frame as a **separate stateless
+    invocation** (`ws-connect`/`ws-message`/`ws-disconnect`) - the exact model §4 rejected.
+  - What the container DOES buy: standard docker image deploy (no runtime quirks), up-to-1-hour requests, and a
+    base to build on if streaming is ever attempted. **Verified 2026-07-12:** one keep-alive connection pins to
+    one container instance (15/15 pings → one `iid`), exactly like the function - the design holds. Two
+    container-only gotchas found during deploy: the image must be `linux/amd64` (arm64 → "exec format error"),
+    and a revision requires `--service-account-id` with `container-registry.images.puller`.
+- A genuinely stateless design (socket state in an external store, or one long streaming request) would be
+  needed to actually drop the pin - out of scope for the minimal repackage.
 ```

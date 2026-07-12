@@ -32,28 +32,43 @@ Protocol: `open{dst}` → `sid`; `exchange{sid,data}` → `{data, closed}` (ping
 ## Layout
 
 - `function/handler.py` - deployed relay (stdlib only). Entry point `handler.handler`.
-- `function/serve_local.py` - run the handler locally for testing.
+- `function/serve_local.py` - HTTP wrapper around the handler; used for local testing and as the container entrypoint.
+- `function/Dockerfile` - image for the Serverless Container.
 - `client/client.py` - local SOCKS5 server + tunnel driver (stdlib only).
 - `deploy.sh` - deploy to a Cloud Function via `yc`.
+- `deploy-container.sh` - deploy to a Serverless Container via `yc` + docker.
 - `test_e2e.py` - one-process end-to-end test.
 
 ## Deploy
+
+Both targets speak the same wire protocol, so the client is identical - only `FUNCTION_URL` differs.
+
+**Cloud Function** (zip upload):
 
 ```bash
 # needs: yc CLI (authenticated), zip, openssl
 TOKEN=$(openssl rand -hex 16) ./deploy.sh
 ```
 
-Prints `FUNCTION_URL` and `TOKEN`.
+**Serverless Container** (docker image):
+
+```bash
+# needs: yc CLI (authenticated), docker, openssl, uv
+TOKEN=$(openssl rand -hex 16) ./deploy-container.sh
+```
+
+Either prints `FUNCTION_URL` and `TOKEN`. A container does not remove the per-session keep-alive pin or the
+10-concurrent-calls-per-zone quota (YC still spreads instances across zones with no stickiness); it buys a
+standard image-based deploy and up-to-1-hour requests.
 
 ## Run the client
 
 ```bash
-export FUNCTION_URL=https://functions.yandexcloud.net/<id>
+export FUNCTION_URL=https://functions.yandexcloud.net/<id>   # or https://<id>.containers.yandexcloud.net
 export TOKEN=<token from deploy>
 # optional SOCKS auth:
 # export SOCKS_USER=me SOCKS_PASS=secret
-python client/client.py               # listens on 127.0.0.1:1080
+uv run client/client.py               # listens on 127.0.0.1:1080
 ```
 
 **macOS TLS certs:** stock macOS Python often has no CA bundle, so the client's
@@ -84,8 +99,8 @@ can't sideload an APK.
 ## Test locally (no deploy)
 
 ```bash
-python test_e2e.py          # no-auth
-python test_e2e.py --auth   # user/pass
+uv run test_e2e.py          # no-auth
+uv run test_e2e.py --auth   # user/pass
 ```
 
 ## Limits / notes
