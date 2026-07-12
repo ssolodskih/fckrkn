@@ -8,7 +8,7 @@
 set -euo pipefail
 
 FUNC_NAME="${FUNC_NAME:-yacfsocks}"
-RUNTIME="${RUNTIME:-python312}"
+RUNTIME="${RUNTIME:-python314}"
 MEMORY="${MEMORY:-256m}"
 TIMEOUT="${TIMEOUT:-60s}"
 CONCURRENCY="${CONCURRENCY:-16}"
