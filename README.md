@@ -108,9 +108,10 @@ uv run test_e2e.py --auth   # user/pass
 - **Session = one pinned keep-alive connection.** Sockets are per-instance; the keep-alive pin keeps each
   session on its instance. If that connection drops, the session ends and Telegram reconnects (new session,
   new pin). Multiple sessions across instances are fine.
-- **Ping-pong transport**, so latency is higher than a raw socket and throughput is ~one 64 KB chunk per
-  round-trip - good for messaging, weak for large media. `EXCHANGE_WAIT` (server, default 0.5s) bounds the
-  idle downstream poll.
+- **Ping-pong transport**, so latency is higher than a raw socket. Each `exchange` long-polls for the first
+  downstream bytes, then drains the already-buffered backlog into the same response - up to `DOWN_CAP` (server,
+  default 1 MB) per round-trip instead of a single 64 KB chunk, which lifts media download throughput with no
+  extra round-trips or added latency. `EXCHANGE_WAIT` (server, default 0.5s) bounds the idle downstream poll.
 - **Not an open relay:** the function only dials Telegram DC ranges unless `ALLOW_ALL=1`.
 - **Port fallback:** RU/DPI blocks `:443` on some DC ranges (e.g. `149.154.167.x`) from Yandex egress. MTProto
   rides `443/80/5222` identically per DC IP, so the relay retries the other ports on the same IP when one times

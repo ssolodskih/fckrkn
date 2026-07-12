@@ -8,7 +8,7 @@ warm. Pin traffic to one warm instance with ``--min-instances 1`` and a high
 
 Protocol (JSON body, one public endpoint):
   {action: "open",     token, dst: "ip:port"}    -> {sid}
-  {action: "exchange", token, sid, data: <b64>}  -> {data: <b64>, closed: bool}  (send+long-poll)
+  {action: "exchange", token, sid, data: <b64>}  -> {data: <b64>, closed: bool}  (send + long-poll + batched drain up to DOWN_CAP)
   {action: "close",    token, sid}               -> {ok: true}
   {action: "ping",     token}                    -> {ok: true, sessions: n}
 """
@@ -29,6 +29,7 @@ CONNECT_TIMEOUT = float(os.environ.get('CONNECT_TIMEOUT', '5'))  # per-port atte
 EXCHANGE_WAIT = float(
     os.environ.get('EXCHANGE_WAIT', '0.5')
 )  # downstream long-poll per exchange
+DOWN_CAP = int(os.environ.get('DOWN_CAP', str(1 << 20)))  # max raw bytes drained per exchange
 ALLOW_ALL = os.environ.get('ALLOW_ALL', '') == '1'
 ALLOWED_PORTS = {80, 443, 5222}
 
@@ -127,7 +128,9 @@ def _open(dst):
 
 def _exchange(sid, data_b64):
     """Serial send+receive for one pinned keep-alive connection: write any
-    upstream bytes, then wait up to EXCHANGE_WAIT for downstream bytes."""
+    upstream bytes, long-poll up to EXCHANGE_WAIT for the first downstream
+    bytes, then drain the already-buffered backlog (no waiting) up to DOWN_CAP
+    so one response carries a batch of chunks instead of a single 64 KB recv."""
     s = _touch(sid)
     if not s:
         return {'error': 'no_session'}
@@ -138,8 +141,10 @@ def _exchange(sid, data_b64):
         except OSError as e:
             _drop(sid)
             return {'error': 'send_failed', 'detail': str(e)}
+    # Phase 1: long-poll up to EXCHANGE_WAIT for the first downstream bytes.
     deadline = time.time() + EXCHANGE_WAIT
-    while True:
+    buf = bytearray()
+    while not buf:
         remaining = deadline - time.time()
         if remaining <= 0:
             return {'data': '', 'closed': False}
@@ -158,8 +163,25 @@ def _exchange(sid, data_b64):
         if chunk == b'':
             _drop(sid)
             return {'data': '', 'closed': True}
-        _touch(sid)
-        return {'data': base64.b64encode(chunk).decode(), 'closed': False}
+        buf += chunk
+    # Phase 2: drain whatever else is already buffered, no waiting, up to DOWN_CAP.
+    # EOF/error here delivers the buffered bytes now; the next exchange reports closed.
+    while len(buf) < DOWN_CAP:
+        try:
+            r, _, _ = select.select([sock], [], [], 0)
+        except OSError:
+            break
+        if not r:
+            break
+        try:
+            chunk = sock.recv(65536)
+        except OSError:
+            break
+        if chunk == b'':
+            break
+        buf += chunk
+    _touch(sid)
+    return {'data': base64.b64encode(bytes(buf)).decode(), 'closed': False}
 
 
 def _resp(code: int, obj):

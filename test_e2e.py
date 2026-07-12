@@ -31,6 +31,23 @@ import client as cl           # noqa: E402
 
 USER, PASS = "u", "p"
 
+# Wrap _exchange to record the largest downstream payload a single call returns,
+# so the test can prove Phase 2 batches multiple 64 KB recvs into one response.
+MAX_DOWN = 0
+_orig_exchange = fn._exchange
+
+
+def _exchange_probe(sid, data_b64):
+    global MAX_DOWN
+    out = _orig_exchange(sid, data_b64)
+    d = out.get("data")
+    if d:
+        MAX_DOWN = max(MAX_DOWN, len(d) * 3 // 4)  # base64 -> raw bytes
+    return out
+
+
+fn._exchange = _exchange_probe
+
 
 def start_echo():
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -122,12 +139,16 @@ async def _amain(auth):
     socks_port = server.sockets[0].getsockname()[1]
 
     async with server:
-        payload = b"the quick brown fox " * 500  # ~10 KB, forces multiple chunks
+        payload = b"the quick brown fox " * 100_000  # ~2 MB, exercises Phase 2 batching
         got = await asyncio.get_event_loop().run_in_executor(
             None, socks5_roundtrip, socks_port, echo_port, payload, auth
         )
     assert got == payload, f"echo mismatch: sent {len(payload)} got {len(got)}"
-    print(f"OK  auth={auth}  round-tripped {len(payload)} bytes through SOCKS5 -> function -> echo")
+    assert MAX_DOWN > 65536, f"no batching: max single-exchange downstream was {MAX_DOWN} bytes (<= 64 KB)"
+    print(
+        f"OK  auth={auth}  round-tripped {len(payload)} bytes through SOCKS5 -> function -> echo; "
+        f"max single-exchange downstream = {MAX_DOWN} bytes (batched > 64 KB)"
+    )
 
 
 def main():
